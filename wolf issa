@@ -1,0 +1,1937 @@
+#Wolf response to silviculture in PGS
+
+# Code for iSSA
+save.image(file='iSSA_wolf_bootstrappedbetas.RData')
+
+#load
+load(file='iSSA_wolf_betas.RData')
+####################### Getting set up #########################
+
+### LOAD PACKAGES ###
+lapply(c("viridis","stringr","fastDummies","car","ppcor","geosphere","MODIS","MODIStsp","velox","rgeos","data.table","plyr","raster", "lubridate", "amt", "magrittr", "readr", "dplyr", "maptools", "spatstat", "tidyr", "ggplot2", "survival", "cowplot", "rgeos", "rgdal", "sf", "sp", "MASS", "readr", "boot", "reshape"), require, character.only = TRUE)
+
+##set wd
+setwd("D:/OneDrive/Documents/Academic/PhD/Publications/iSSA/Data/")
+
+##set seed
+set.seed(1)
+
+####################### Making available tracks for iSSA #########################
+
+### LOAD DATA ###
+wolves_used_final<-read.csv("wolf_alltelemetry.csv")
+
+#check for missing values, no action if TRUE
+all(complete.cases(wolves_used_final)) 
+
+#parse date and time and create time stamps
+wolves_used_final$ts <- as.POSIXct(ymd(wolves_used_final$LMT_Date) + hms(wolves_used_final$LMT_Time))
+
+#create month and season columns
+wolves_used_final$Month <- month(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y"))
+wolves_used_final$Year <- year(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y"))
+wolves_used_final$Season <- wolves_used_final$Month
+wolves_used_final$Season[wolves_used_final$Season >= 1 & wolves_used_final$Season <= 2] <- "winter"
+wolves_used_final$Season[wolves_used_final$Season >= 3 & wolves_used_final$Season <= 4] <- "spring"
+wolves_used_final$Season[wolves_used_final$Season >= 5 & wolves_used_final$Season <= 7] <- "earlysum"
+wolves_used_final$Season[wolves_used_final$Season >= 8 & wolves_used_final$Season <= 9] <- "latesum"
+wolves_used_final$Season[wolves_used_final$Season >= 10 & wolves_used_final$Season <= 12] <- "autumn"
+
+# remove wolves with too few locations (<14 days)
+wolves_used_final$check <- paste(wolves_used_final$ID, wolves_used_final$Year, wolves_used_final$Season) #make column for filtering
+wolves_used_final <- wolves_used_final %>% group_by(check) %>% filter(n() > 336)#remove animals with <14 days
+dt <- data.table(wolves_used_final) #change to data.table
+dt[,list(freq = .N), by = "check"] #check that no animals with <7 days remain
+wolves_used_final <- wolves_used_final[,-10]
+rm(dt)
+
+#split by seasons
+alltelemetry <- split(wolves_used_final, wolves_used_final$Season)
+dat_spring <- alltelemetry$spring
+dat_earlysum <- alltelemetry$earlysum
+dat_latesum <- alltelemetry$latesum
+dat_autumn <- alltelemetry$autumn
+dat_winter <- alltelemetry$winter
+rm(alltelemetry, wolves_used_final)
+
+#change field names
+spring_used <- dplyr::select(dat_spring, id = ID, x = Longitude, y = Latitude, t = ts)
+earlysum_used <- dplyr::select(dat_earlysum, id = ID, x = Longitude, y = Latitude, t = ts)
+latesum_used <- dplyr::select(dat_latesum, id = ID, x = Longitude, y = Latitude, t = ts)
+autumn_used <- dplyr::select(dat_autumn, id = ID, x = Longitude, y = Latitude, t = ts)
+winter_used <- dplyr::select(dat_winter, id = ID, x = Longitude, y = Latitude, t = ts)
+rm(dat_spring,dat_earlysum,dat_latesum,dat_autumn,dat_winter)
+
+#nest data into list-column
+dat_spring_all <- spring_used %>% nest(-id)
+dat_earlysum_all <- earlysum_used %>% nest(-id)
+dat_latesum_all <- latesum_used %>% nest(-id)
+dat_autumn_all <- autumn_used %>% nest(-id)
+dat_winter_all <- winter_used %>% nest(-id)
+rm(spring_used,earlysum_used,latesum_used,autumn_used,winter_used)
+
+#create tracks and transform coordinate system
+dat_spring_all <- dat_spring_all %>% 
+  mutate(trk = map(data, function(d) {
+    mk_track(d, x, y, t, crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+      transform_coords(sp::CRS("+init=epsg:3005"))
+})) 
+dat_earlysum_all <- dat_earlysum_all %>% 
+  mutate(trk = map(data, function(d) {
+    mk_track(d, x, y, t, crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+      transform_coords(sp::CRS("+init=epsg:3005"))
+}))
+dat_latesum_all <- dat_latesum_all %>% 
+  mutate(trk = map(data, function(d) {
+    mk_track(d, x, y, t, crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+      transform_coords(sp::CRS("+init=epsg:3005"))
+}))
+dat_autumn_all <- dat_autumn_all %>% 
+  mutate(trk = map(data, function(d) {
+    mk_track(d, x, y, t, crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+      transform_coords(sp::CRS("+init=epsg:3005"))
+}))
+dat_winter_all <- dat_winter_all %>% 
+  mutate(trk = map(data, function(d) {
+    mk_track(d, x, y, t, crs = sp::CRS("+proj=longlat +datum=WGS84")) %>% 
+      transform_coords(sp::CRS("+init=epsg:3005"))
+}))
+
+#inspect sampling rate
+#samplingrate_spring <- dat_spring_all %>% mutate(sr = lapply(trk, summarize_sampling_rate)) %>% 
+#  dplyr::select(id, sr) %>% unnest(-id)
+#samplingrate_earlysum <- dat_earlysum_all %>% mutate(sr = lapply(trk, summarize_sampling_rate)) %>% 
+#  dplyr::select(id, sr) %>% unnest(-id)
+#samplingrate_latesum <- dat_latesum_all %>% mutate(sr = lapply(trk, summarize_sampling_rate)) %>% 
+#  dplyr::select(id, sr) %>% unnest(-id)
+#samplingrate_autumn <- dat_autumn_all %>% mutate(sr = lapply(trk, summarize_sampling_rate)) %>% 
+#  dplyr::select(id, sr) %>% unnest(-id)
+#samplingrate_winter <- dat_winter_all %>% mutate(sr = lapply(trk, summarize_sampling_rate)) %>% 
+#  dplyr::select(id, sr) %>% unnest(-id)
+
+#make steps
+spring_used_available <- dat_spring_all %>% mutate(ssf = lapply(trk, function(x) {
+  x %>% track_resample(rate = minutes(60), tolerance = minutes(5)) %>%
+    filter_min_n_burst(min_n = 3) %>% 
+    steps_by_burst() %>% random_steps(n = 10) %>% time_of_day(include.crepuscule = TRUE)
+}))
+earlysum_used_available <- dat_earlysum_all %>% mutate(ssf = lapply(trk, function(x) {
+  x %>% track_resample(rate = minutes(60), tolerance = minutes(5)) %>%
+    filter_min_n_burst(min_n = 3) %>%
+    steps_by_burst() %>% random_steps(n = 10) %>% time_of_day(include.crepuscule = TRUE)
+}))
+latesum_used_available <- dat_latesum_all %>% mutate(ssf = lapply(trk, function(x) {
+  x %>% track_resample(rate = minutes(60), tolerance = minutes(5)) %>%
+    filter_min_n_burst(min_n = 3) %>%
+    steps_by_burst() %>% random_steps(n = 10) %>% time_of_day(include.crepuscule = TRUE)
+}))
+autumn_used_available <- dat_autumn_all %>% mutate(ssf = lapply(trk, function(x) {
+  x %>% track_resample(rate = minutes(60), tolerance = minutes(5)) %>%
+    filter_min_n_burst(min_n = 3) %>%
+    steps_by_burst() %>% random_steps(n = 10) %>% time_of_day(include.crepuscule = TRUE)
+}))
+winter_used_available <- dat_winter_all %>% mutate(ssf = lapply(trk, function(x) {
+  x %>% track_resample(rate = minutes(60), tolerance = minutes(5)) %>%
+    filter_min_n_burst(min_n = 3) %>%
+    steps_by_burst() %>% random_steps(n = 10) %>% time_of_day(include.crepuscule = TRUE)
+}))
+rm(dat_spring_all, dat_earlysum_all, dat_latesum_all, dat_autumn_all,dat_winter_all)
+
+#unnest data and clean up
+wolves_used_available_spring <- spring_used_available %>% unnest(ssf)
+wolves_used_available_spring[2:3] <- list(NULL)
+wolves_used_available_earlysum <- earlysum_used_available %>% unnest(ssf)
+wolves_used_available_earlysum[2:3] <- list(NULL)
+wolves_used_available_latesum <- latesum_used_available %>% unnest(ssf)
+wolves_used_available_latesum[2:3] <- list(NULL)
+wolves_used_available_autumn <- autumn_used_available %>% unnest(ssf)
+wolves_used_available_autumn[2:3] <- list(NULL)
+wolves_used_available_winter <- winter_used_available %>% unnest(ssf)
+wolves_used_available_winter[2:3] <- list(NULL)
+rm(spring_used_available, earlysum_used_available, latesum_used_available, autumn_used_available, winter_used_available)
+
+#add season
+wolves_used_available_spring$season <- "spring"
+wolves_used_available_earlysum$season <- "earlysum"
+wolves_used_available_latesum$season <- "latesum"
+wolves_used_available_autumn$season <- "autumn"
+wolves_used_available_winter$season <- "winter"
+
+#make final sheet
+wolves_used_available_final <- rbind(wolves_used_available_spring, wolves_used_available_earlysum, wolves_used_available_latesum, wolves_used_available_autumn,wolves_used_available_winter)
+rm(wolves_used_available_spring, wolves_used_available_earlysum, wolves_used_available_latesum, wolves_used_available_autumn,wolves_used_available_winter)
+names(wolves_used_available_final) <- gsub(pattern = "_", replacement = "", x = names(wolves_used_available_final))
+wolves_used_available_final$year <- as.factor(year(wolves_used_available_final$t1))
+wolves_used_available_final$Date <- date(wolves_used_available_final$t1)
+wolves_used_available_final$julian.day<-yday(wolves_used_available_final$Date)
+
+#clean erroneous step lengths
+cleansl <- wolves_used_available_final[wolves_used_available_final$sl >= 20000,]
+cleansl$clean <- as.factor(paste(cleansl$id, cleansl$year, cleansl$season, cleansl$burst, cleansl$stepid))
+cleansl_rm <- unique(cleansl$clean)
+wolves_used_available_final$clean <- as.factor(paste(wolves_used_available_final$id, wolves_used_available_final$year, wolves_used_available_final$season, wolves_used_available_final$burst, wolves_used_available_final$stepid))
+wolves_used_available_final <- wolves_used_available_final[!wolves_used_available_final$clean %in% cleansl_rm,]
+rm(cleansl,cleansl_rm)
+wolves_used_available_final <- wolves_used_available_final[,-19]
+
+####################### Spatial preparation and covariate extraction #########################
+
+#making steps into spatialpointsdataframe (from end points)
+crs <- CRS("+init=epsg:3005")
+wolves_ua_sp_start <- SpatialPointsDataFrame(wolves_used_available_final[,5:6], 
+                                             wolves_used_available_final, proj4string=crs)
+wolves_ua_sp_end <- SpatialPointsDataFrame(wolves_used_available_final[,7:8],
+                                           wolves_used_available_final, proj4string=crs)
+backup <- wolves_used_available_final
+
+############### mean May/June lagged NDVI ########################
+
+#Add rasters for May/June for each year
+#2017
+MOD13Q1_NDVI_2017_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_129.tif")
+MOD13Q1_NDVI_2017_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_145.tif")
+MOD13Q1_NDVI_2017_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_161.tif")
+MOD13Q1_NDVI_2017_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_177.tif")
+#2018
+MOD13Q1_NDVI_2018_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_129.tif")
+MOD13Q1_NDVI_2018_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_145.tif")
+MOD13Q1_NDVI_2018_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_161.tif")
+MOD13Q1_NDVI_2018_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_177.tif")
+#2019
+MOD13Q1_NDVI_2019_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_129.tif")
+MOD13Q1_NDVI_2019_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_145.tif")
+MOD13Q1_NDVI_2019_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_161.tif")
+MOD13Q1_NDVI_2019_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_177.tif")
+
+#find the max NDVI for each pixel in the raster stack:
+meanNDVI2017<-mean(MOD13Q1_NDVI_2017_129,MOD13Q1_NDVI_2017_145,MOD13Q1_NDVI_2017_161,MOD13Q1_NDVI_2017_177)
+meanNDVI2018<-mean(MOD13Q1_NDVI_2018_129,MOD13Q1_NDVI_2018_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2018_177)
+meanNDVI2019<-mean(MOD13Q1_NDVI_2019_129,MOD13Q1_NDVI_2019_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2019_177)
+rm(MOD13Q1_NDVI_2017_129,MOD13Q1_NDVI_2017_145,MOD13Q1_NDVI_2017_161,MOD13Q1_NDVI_2017_177,MOD13Q1_NDVI_2018_129,MOD13Q1_NDVI_2018_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2018_177,MOD13Q1_NDVI_2019_129,MOD13Q1_NDVI_2019_145,MOD13Q1_NDVI_2019_161,MOD13Q1_NDVI_2019_177)
+
+#reproject raster
+meanNDVI2017 <- projectRaster(meanNDVI2017, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+meanNDVI2018 <- projectRaster(meanNDVI2018, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+meanNDVI2019 <- projectRaster(meanNDVI2019, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+
+#change to velox object
+meanNDVI2017.vx <- velox(meanNDVI2017)
+meanNDVI2018.vx <- velox(meanNDVI2018)
+meanNDVI2019.vx <- velox(meanNDVI2019)
+
+#extract lagged NDVI values (e.g. if 2018, select from 2017 NDVI May/June mean) at start of step
+wolves_used_available_final$start_meanNDVIlag <- if (wolves_used_available_final$year == 2018){meanNDVI2017.vx$extract_points(wolves_ua_sp_start)*0.0001
+} else if (wolves_used_available_final$year == 2019){meanNDVI2018.vx$extract_points(wolves_ua_sp_start)*0.0001
+} else if (wolves_used_available_final$year == 2020) {meanNDVI2019.vx$extract_points(wolves_ua_sp_start)*0.0001
+      } else (print(0))
+
+#extract lagged NDVI values (e.g. if 2018, select from 2017 NDVI May/June mean) at end of step
+wolves_used_available_final$end_meanNDVIlag <- if (wolves_used_available_final$year == 2018){meanNDVI2017.vx$extract_points(wolves_ua_sp_end)*0.0001
+} else if (wolves_used_available_final$year == 2019){meanNDVI2018.vx$extract_points(wolves_ua_sp_end)*0.0001
+} else if (wolves_used_available_final$year == 2020) {meanNDVI2019.vx$extract_points(wolves_ua_sp_end)*0.0001
+      } else (print(0))
+rm(meanNDVI2017,meanNDVI2018,meanNDVI2019)
+
+wolves_used_available_final$start_meanNDVIlag[is.na(wolves_used_available_final$start_meanNDVIlag)] = mean(wolves_used_available_final$start_meanNDVIlag, na.rm=TRUE)
+wolves_used_available_final$end_meanNDVIlag[is.na(wolves_used_available_final$end_meanNDVIlag)] = mean(wolves_used_available_final$end_meanNDVIlag, na.rm=TRUE)
+
+############### current NDVI ##################
+
+#import NDVI files into stack
+NDVI.rasters<-stack(list.files("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI",pattern='\\.tif$',full.names = TRUE))
+
+#extract julian day from file name
+substrRight <- function(x, from, to){
+  substr(x, nchar(x)-from+1, nchar(x)-to) 
+}
+
+#make into velox stack and add names
+NDVI.rasters.vx<-velox(NDVI.rasters)
+names(NDVI.rasters.vx$rasterbands)<-names(NDVI.rasters)
+
+#transform to raster crs
+wolves_ua_sp_start1 <- spTransform(wolves_ua_sp_start,crs(NDVI.rasters))
+wolves_ua_sp_end1 <- spTransform(wolves_ua_sp_end,crs(NDVI.rasters))
+
+#determine NDVI at each point, matched in time to closest 16-day window for NDVI, extracted from start of step
+wolves_vars_start<-list()
+
+for(i in 1:nrow(wolves_used_available_final)){
+pt<-wolves_ua_sp_start1[i,]
+day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolf point date
+NDVI.v<-velox(NDVI.rasters.vx$rasterbands[[which(as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),8,4)) == year(pt$Date)&
+                                          as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),3,0)) %in% day)]],res = res(NDVI.rasters),extent=as.vector(extent(NDVI.rasters)),crs=crs(NDVI.rasters)) # finds the NDVI raster that was found in the day window
+pt$NDVI<-NDVI.v$extract_points(pt)
+wolves_vars_start[[i]]<-as.data.frame(pt)
+print(i)
+}
+
+wolves_vars_start<-bind_rows(wolves_vars_start)
+
+#determine NDVI at each point, matched in time to closest 16-day window for NDVI, extracted from end of step
+wolves_vars_end<-list()
+
+for(i in 1:nrow(wolves_used_available_final)){
+pt<-wolves_ua_sp_end1[i,]
+day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolf point date
+NDVI.v<-velox(NDVI.rasters.vx$rasterbands[[which(as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),8,4)) == year(pt$Date)&
+                                          as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),3,0)) %in% day)]],res = res(NDVI.rasters),extent=as.vector(extent(NDVI.rasters)),crs=crs(NDVI.rasters)) # finds the NDVI raster that was found in the day window
+pt$NDVI<-NDVI.v$extract_points(pt)
+wolves_vars_end[[i]]<-as.data.frame(pt)
+print(i)
+}
+
+wolves_vars_end<-bind_rows(wolves_vars_end)
+
+#add NDVI to full dataset
+wolves_used_available_final$start_NDVI <- wolves_vars_start$NDVI
+wolves_used_available_final$end_NDVI <- wolves_vars_end$NDVI
+
+#apply scaling factor and remove NAs
+wolves_used_available_final$start_NDVI <- wolves_used_available_final$start_NDVI*0.0001
+wolves_used_available_final$end_NDVI <- wolves_used_available_final$end_NDVI*0.0001
+wolves_used_available_final$start_NDVI[is.na(wolves_used_available_final$start_NDVI)] = mean(wolves_used_available_final$start_NDVI, na.rm=TRUE)
+wolves_used_available_final$end_NDVI[is.na(wolves_used_available_final$end_NDVI)] = mean(wolves_used_available_final$end_NDVI, na.rm=TRUE)
+rm(NDVI.rasters)
+rm(wolves_vars_end,wolves_vars_start)
+rm(pt)
+rm(wolves_ua_sp_start1, wolves_ua_sp_end1)
+
+############### Land Cover ####################
+
+#load in data
+VRI <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\VRI\\LANDCOVER_FINAL_PGS_RAST.tif")
+lookup <- read.csv("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Landcover\\VRI_TABLE.csv")
+
+#substitute object ID with landcover
+VRI <- subs(VRI,lookup,by="OBJECTID_1",which="Landcover")
+VRI <- as.factor(VRI)
+
+#project raster
+VRI <- projectRaster(VRI, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+VRI.vx <- velox(VRI)
+
+#extract VRI at start of step
+wolves_used_available_final$start_landcover <- as.factor(round(VRI.vx$extract_points(wolves_ua_sp_start)))
+
+#extract VRI at end of step
+wolves_used_available_final$end_landcover <- as.factor(round(VRI.vx$extract_points(wolves_ua_sp_end)))
+
+#replace levels
+levels(wolves_used_available_final$start_landcover) <- c("Coniferous","Deciduous","MixedForest","Nonforest","Pine")
+levels(wolves_used_available_final$end_landcover) <- c("Coniferous","Deciduous","MixedForest","Nonforest","Pine")
+
+#change into dummies
+wolves_used_available_final<-dummy_cols(wolves_used_available_final, select_columns="start_landcover",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+wolves_used_available_final<-dummy_cols(wolves_used_available_final, select_columns="end_landcover",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+rm(VRI)
+rm(lookup)
+
+#make a factor
+wolves_used_available_final$start_landcover_Coniferous <- as.factor(wolves_used_available_final$start_landcover_Coniferous)
+wolves_used_available_final$start_landcover_Deciduous <- as.factor(wolves_used_available_final$start_landcover_Deciduous)
+wolves_used_available_final$start_landcover_Pine <- as.factor(wolves_used_available_final$start_landcover_Pine)
+wolves_used_available_final$start_landcover_MixedForest <- as.factor(wolves_used_available_final$start_landcover_MixedForest)
+wolves_used_available_final$start_landcover_Nonforest <- as.factor(wolves_used_available_final$start_landcover_Nonforest)
+
+wolves_used_available_final$end_landcover_Coniferous <- as.factor(wolves_used_available_final$end_landcover_Coniferous)
+wolves_used_available_final$end_landcover_Deciduous <- as.factor(wolves_used_available_final$end_landcover_Deciduous)
+wolves_used_available_final$end_landcover_Pine <- as.factor(wolves_used_available_final$end_landcover_Pine)
+wolves_used_available_final$end_landcover_MixedForest <- as.factor(wolves_used_available_final$end_landcover_MixedForest)
+wolves_used_available_final$end_landcover_Nonforest <- as.factor(wolves_used_available_final$end_landcover_Nonforest)
+
+
+############### Elevation #####################
+
+#load elevation data
+elevation <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Topography\\PGS_ELEVATION_50KM_FINAL.tif")
+elevation <- projectRaster(elevation, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+elev.vx <- velox(elevation)
+
+#extract elevation at start of step
+wolves_used_available_final$start_elevation <- elev.vx$extract_points(wolves_ua_sp_start)
+
+#extract elevation at end of step
+wolves_used_available_final$end_elevation <- elev.vx$extract_points(wolves_ua_sp_end)
+rm(elevation)
+
+############### Slope ########################
+
+#load slope data
+slope <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Topography\\PGS_SLOPE_50KM_FINAL.tif")
+slope <- projectRaster(slope, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+slope.vx <- velox(slope)
+
+#extract slope at start of step
+wolves_used_available_final$start_slope <- slope.vx$extract_points(wolves_ua_sp_start)
+
+#extract slope at end of step
+wolves_used_available_final$end_slope <- slope.vx$extract_points(wolves_ua_sp_end)
+rm(slope)
+
+############### Aspect ########################
+
+#load aspect data
+aspect <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Topography\\PGS_ASPECT_50KM_FINAL.tif")
+aspect <- projectRaster(aspect, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+aspect.vx <- velox(aspect)
+
+#extract aspect at start of step
+wolves_used_available_final$start_aspect <- aspect.vx$extract_points(wolves_ua_sp_start)
+
+#extract aspect at end of step
+wolves_used_available_final$end_aspect <- aspect.vx$extract_points(wolves_ua_sp_end)
+rm(aspect)
+
+############### Road density ######################
+
+#load road density data
+roaddens <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\PGS_ROADDENS_FINAL.tif")
+roaddens <- projectRaster(roaddens, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+roaddens.vx <- velox(roaddens)
+
+#extract roaddens at start of step
+wolves_used_available_final$start_roaddens <- roaddens.vx$extract_points(wolves_ua_sp_start)
+
+#extract roaddens at end of step
+wolves_used_available_final$end_roaddens <- roaddens.vx$extract_points(wolves_ua_sp_end)
+rm(roaddens)
+
+############# Distance to Road ########################
+
+#load distance to road data
+roaddist <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\EucDist_road10m.tif")
+
+#project raster
+roaddist <- projectRaster(roaddist, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+roaddist.vx <- velox(roaddist)
+
+#extract roaddist at start of step
+wolves_used_available_final$start_roaddist <- as.numeric(roaddist.vx$extract_points(wolves_ua_sp_start))
+
+#extract roaddist at end of step
+wolves_used_available_final$end_roaddist <- as.numeric(roaddist.vx$extract_points(wolves_ua_sp_end))
+rm(roaddist)
+
+############# Cut blocks ###############################
+
+#load shapefile
+cut2018 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2018")
+cut2019 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2019")
+
+#clean up
+cut2018clean <- cut2018[,-(c(1:114,116:121,123))]
+cut2019clean <- cut2019[,-(c(1:114,116:121,123))]
+head(cut2018clean@data)
+which(colnames(cut2018@data)=="AgeClass") #determines which columns to cut
+rm(cut2018,cut2019)
+
+#transform crs
+cut2018clean <- spTransform(cut2018clean,crs("+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+cut2019clean <- spTransform(cut2019clean,crs("+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"))
+
+#extract data based on year at start of step
+start_overcut <- if (wolves_ua_sp_start$year == "2018"){over(wolves_ua_sp_start,cut2018clean,fun=NULL)
+} else if (wolves_ua_sp_start$year == "2019"){over(wolves_ua_sp_start,cut2019clean,fun=NULL)
+} else if (wolves_used_available_final$year == "2020"){over(wolves_ua_sp_start,cut2019clean,fun=NULL) #change when 2020 cuts available
+      } else (print("NA"))
+colnames(start_overcut)[1] <- "start_sizeha"
+colnames(start_overcut)[2] <- "start_cutage"
+colnames(start_overcut)[3] <- "start_cutageclass"
+
+#extract data based on year at end of step
+end_overcut <- if (wolves_ua_sp_end$year == "2018"){over(wolves_ua_sp_end,cut2018clean,fun=NULL)
+} else if (wolves_ua_sp_end$year == "2019"){over(wolves_ua_sp_end,cut2019clean,fun=NULL)
+} else if (wolves_used_available_final$year == "2020"){over(wolves_ua_sp_end,cut2019clean,fun=NULL) #change when 2020 cuts available
+      } else (print("NA"))
+colnames(end_overcut)[1] <- "end_sizeha"
+colnames(end_overcut)[2] <- "end_cutage"
+colnames(end_overcut)[3] <- "end_cutageclass"
+
+#combine with the dataset
+wolves_used_available_final <- cbind(wolves_used_available_final,start_overcut,end_overcut)
+wolves_used_available_final$start_sizeha[is.na(wolves_used_available_final$start_sizeha)] = 0
+wolves_used_available_final$end_sizeha[is.na(wolves_used_available_final$end_sizeha)] = 0
+wolves_used_available_final$start_cutage[is.na(wolves_used_available_final$start_cutage)] = 0
+wolves_used_available_final$end_cutage[is.na(wolves_used_available_final$end_cutage)] = 0
+wolves_used_available_final$start_cutageclass <- as.factor(wolves_used_available_final$start_cutageclass)
+wolves_used_available_final$end_cutageclass <- as.factor(wolves_used_available_final$end_cutageclass)
+wolves_used_available_final$start_cutageclass<- factor(wolves_used_available_final$start_cutageclass, levels = levels(addNA(wolves_used_available_final$start_cutageclass)), labels = c(levels(wolves_used_available_final$start_cutageclass), "UnCut"), exclude = NULL)
+wolves_used_available_final$end_cutageclass<- factor(wolves_used_available_final$end_cutageclass, levels = levels(addNA(wolves_used_available_final$end_cutageclass)), labels = c(levels(wolves_used_available_final$end_cutageclass), "UnCut"), exclude = NULL)
+
+#make dummies for cut age classes
+wolves_used_available_final<-dummy_cols(wolves_used_available_final, select_columns="start_cutageclass",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+wolves_used_available_final<-dummy_cols(wolves_used_available_final, select_columns="end_cutageclass",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+
+rm(start_overcut, end_overcut)
+
+#################### Edge In #################################
+
+#load distance to forest edge when in forest rasters
+edgein2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2018.tif")
+edgein2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2019.tif")
+
+#transform rasters
+edgein2018 <- projectRaster(edgein2018, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+edgein2019 <- projectRaster(edgein2019, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+
+#create velox raster
+edgein2018.vx <- velox(edgein2018)
+edgein2019.vx <- velox(edgein2019)
+
+#extract at start of step
+wolves_used_available_final$start_edgein <- if (wolves_ua_sp_start$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_start)
+} else if (wolves_ua_sp_start$year == "2019"){edgein2019.vx$extract_points(wolves_ua_sp_start)
+} else if (wolves_used_available_final$year == "2020"){edgein2019.vx$extract_points(wolves_ua_sp_start) #change when 2020 cuts available
+      } else (print("NA"))
+
+#extract at end of step
+wolves_used_available_final$end_edgein <- if (wolves_ua_sp_end$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_end)
+} else if (wolves_ua_sp_end$year == "2019"){edgein2019.vx$extract_points(wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"){edgein2019.vx$extract_points(wolves_ua_sp_end) #change when 2020 cuts available
+      } else (print("NA"))
+rm(edgein2018,edgein2019)
+
+wolves_used_available_final$start_edgein[is.na(wolves_used_available_final$start_edgein)] = mean(wolves_used_available_final$start_edgein, na.rm=TRUE)
+wolves_used_available_final$end_edgein[is.na(wolves_used_available_final$end_edgein)] = mean(wolves_used_available_final$end_edgein, na.rm=TRUE)
+
+#################### Edge Out #################################
+
+#load distance to forest edge when outside forest rasters
+edgeout2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2018.tif")
+edgeout2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2019.tif")
+
+#transform rasters
+edgeout2018 <- projectRaster(edgeout2018, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+edgeout2019 <- projectRaster(edgeout2019, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+
+#create velox raster
+edgeout2018.vx <- velox(edgeout2018)
+edgeout2019.vx <- velox(edgeout2019)
+
+#extract at start of step
+wolves_used_available_final$start_edgeout <- if (wolves_ua_sp_start$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_start)
+} else if (wolves_ua_sp_start$year == "2019"){edgeout2019.vx$extract_points(wolves_ua_sp_start)
+} else if (wolves_used_available_final$year == "2020"){edgeout2019.vx$extract_points(wolves_ua_sp_start) #change when 2020 cuts available
+      } else (print("NA"))
+
+#extract at end of step
+wolves_used_available_final$end_edgeout <- if (wolves_ua_sp_end$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_end)
+} else if (wolves_ua_sp_end$year == "2019"){edgeout2019.vx$extract_points(wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"){edgeout2019.vx$extract_points(wolves_ua_sp_end) #change when 2020 cuts available
+      } else (print("NA"))
+rm(edgeout2018,edgeout2019)
+
+#################### Distance to water  ########
+
+#import raster
+water <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Water\\dist_water10m.tif")
+
+#transform raster
+water <- projectRaster(water, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
+
+#create velox raster
+water.vx <- velox(water)
+
+#extract roaddens at start of step
+wolves_used_available_final$start_water <- water.vx$extract_points(wolves_ua_sp_start)
+
+#extract roaddens at end of step
+wolves_used_available_final$end_water <- water.vx$extract_points(wolves_ua_sp_end)
+rm(water)
+
+########### save data! ###############
+
+rm(wolves_ua_sp_start, wolves_ua_sp_end,crs,day,i)
+write.csv(wolves_used_available_final, "wolves_used_available_final.csv")
+
+save.image(file='iSSA_wolf_extractedvariables.RData')
+
+rm(aspect.vx, cut2018clean,cut2019clean,edgein2018.vx,edgein2019.vx,edgeout2018.vx,edgeout2019.vx, elev.vx,meanNDVI2017.vx)
+rm(meanNDVI2018.vx,meanNDVI2019.vx,NDVI.rasters.vx,NDVI.v,roaddens.vx,roaddist.vx,slope.vx,VRI.vx,water.vx)
+
+############# Reload data (if failed) #####################
+
+#load data
+wolves_used_available_final<-read.csv("wolves_used_available_final.csv")
+
+#make a factor
+wolves_used_available_final$start_landcover_Coniferous <- as.factor(wolves_used_available_final$start_landcover_Coniferous)
+wolves_used_available_final$start_landcover_Deciduous <- as.factor(wolves_used_available_final$start_landcover_Deciduous)
+wolves_used_available_final$start_landcover_Pine <- as.factor(wolves_used_available_final$start_landcover_Pine)
+wolves_used_available_final$start_landcover_MixedForest <- as.factor(wolves_used_available_final$start_landcover_MixedForest)
+wolves_used_available_final$start_landcover_Nonforest <- as.factor(wolves_used_available_final$start_landcover_Nonforest)
+
+wolves_used_available_final$end_landcover_Coniferous <- as.factor(wolves_used_available_final$end_landcover_Coniferous)
+wolves_used_available_final$end_landcover_Deciduous <- as.factor(wolves_used_available_final$end_landcover_Deciduous)
+wolves_used_available_final$end_landcover_Pine <- as.factor(wolves_used_available_final$end_landcover_Pine)
+wolves_used_available_final$end_landcover_MixedForest <- as.factor(wolves_used_available_final$end_landcover_MixedForest)
+wolves_used_available_final$end_landcover_Nonforest <- as.factor(wolves_used_available_final$end_landcover_Nonforest)
+
+wolves_used_available_final$start_cutageclass_new <- as.factor(wolves_used_available_final$start_cutageclass_new)
+wolves_used_available_final$start_cutageclass_regen <- as.factor(wolves_used_available_final$start_cutageclass_regen)
+wolves_used_available_final$start_cutageclass_old <- as.factor(wolves_used_available_final$start_cutageclass_old)
+wolves_used_available_final$start_cutageclass_UnCut <- as.factor(wolves_used_available_final$start_cutageclass_UnCut)
+wolves_used_available_final$end_cutageclass_new <- as.factor(wolves_used_available_final$end_cutageclass_new)
+wolves_used_available_final$end_cutageclass_regen <- as.factor(wolves_used_available_final$end_cutageclass_regen)
+wolves_used_available_final$end_cutageclass_old <- as.factor(wolves_used_available_final$end_cutageclass_old)
+wolves_used_available_final$end_cutageclass_UnCut <- as.factor(wolves_used_available_final$end_cutageclass_UnCut)
+wolves_used_available_final <- wolves_used_available_final[,-1]
+
+#################### Modelling #############################
+
+#rename headings
+wolves_used_available_final<-as.data.frame(wolves_used_available_final)
+wolves_used_available_final$Year <- wolves_used_available_final$year
+wolves_used_available_final$used <- sub("TRUE","1", wolves_used_available_final$case)
+wolves_used_available_final$used <- sub("FALSE","0", wolves_used_available_final$used)
+wolves_used_available_final$used <- as.numeric(wolves_used_available_final$used)
+
+#change to factor
+names(wolves_used_available_final)[names(wolves_used_available_final) == "id"] <- "name"
+wolves_used_available_final$name <- as.factor(wolves_used_available_final$name)
+wolves_used_available_final$tod_end <- as.numeric(ifelse(wolves_used_available_final$todend=="day",0,1))
+wolves_used_available_final$tod_end <- as.numeric(wolves_used_available_final$tod_end)
+wolves_used_available_final$season <- as.factor(wolves_used_available_final$season)
+wolves_used_available_final$Year <- as.factor(wolves_used_available_final$Year)
+
+#make log step length and cosine turn angle
+wolves_used_available_final$lnSL <- log(wolves_used_available_final$sl)
+wolves_used_available_final$cosTA <- cos(wolves_used_available_final$ta)
+
+#log of distance variables
+wolves_used_available_final$ln_end_water <- log(wolves_used_available_final$end_water+0.1)
+wolves_used_available_final$ln_start_water <- log(wolves_used_available_final$start_water+0.1)
+wolves_used_available_final$ln_start_roaddist <- log(wolves_used_available_final$start_roaddist+0.1)
+wolves_used_available_final$ln_end_roaddist <- log(wolves_used_available_final$end_roaddist+0.1)
+wolves_used_available_final$end_aspect <- round(wolves_used_available_final$end_aspect)
+wolves_used_available_final$end_sizeha <- wolves_used_available_final$end_sizeha*0.01
+wolves_used_available_final$start_sizeha <- wolves_used_available_final$start_sizeha*0.01
+wolves_used_available_final$end_edgein <- wolves_used_available_final$end_edgein/1000
+wolves_used_available_final$end_edgeout <- wolves_used_available_final$end_edgeout/1000
+wolves_used_available_final$ln_end_edgeout <- log(wolves_used_available_final$end_edgeout+0.1)
+wolves_used_available_final$ln_end_edgein <- log(wolves_used_available_final$end_edgein+0.1)
+
+wolves_used_available_final$hour <- as.numeric(str_sub(wolves_used_available_final$t2,-7,-7))
+wolves_used_available_final$sinhour <- sin((4*pi*(wolves_used_available_final$hour-3))/24)
+
+
+############### Check for collinearity ####################
+
+correlation <- cor(wolves_used_available_final[c(19:22,30:54,60:63,65)])
+write.csv(correlation,'wolves_vars_correlation.csv')
+
+
+-----------------------------------
+### RUN MODELS ###
+-----------------------------------
+
+#organize/scale data
+year<-as.vector(2018:2020)
+wolf<-vector()
+Season<-vector()
+Year<-vector()
+Model<-vector()
+AIC<-vector()
+Covariates<-vector()
+beta<-vector()
+SE<-vector()
+p<-vector()
+
+for (i in 1:length(year)){
+  data<-wolves_used_available_final %>% filter(Year==!!year[i])
+  season<-unique(data$season)
+  for (j in 1:length(season)){
+    data2<-data %>% filter(season==!!season[j])
+    name <- unique(data2$name)
+    for (k in 1:length(name)){
+    data3<-data2 %>% filter(name ==!!name[k])
+    assign(paste(year[i],season[j],name[k],sep=" "),data3)
+    if(nrow(data)>0){
+      output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("base",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("base",output)
+      
+      output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("facilitatemovement",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("facilitatemovement",output)
+      
+      output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_sizeha+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("preydiversity",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("preydiversity",output)
+           
+
+      output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("anthro",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("anthro",output)
+                 
+          
+      #output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+ln_start_roaddist:lnSL+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("anthro+facilitate",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("anthro+facilitate",output)
+      
+                 
+      #output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("anthro+preydiversity",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("anthro+preydiversity",output)
+            
+      #output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("facilitatemovement+prey",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("facilitatemovement+prey",output)
+      
+      
+      output<-clogit(used~end_elevation+end_slope+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+end_sizeha+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("complete",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("complete",output)
+    }
+        print(paste(year[i],season[j],name[k],sep=" "))
+    }
+
+  }
+}
+
+#create base iSSA dataframe
+base_results_issa<-as.data.frame(cbind(wolf,Year,Season,Model,AIC,Covariates,beta,SE,p))
+base_results_issa$AIC<-as.numeric(as.character(AIC))
+base_results_issa$check <- paste(base_results_issa$wolf, base_results_issa$Year, base_results_issa$Season)
+
+######### Calculate AIC weight ###############
+
+#make AIC dataframe
+AIC_results<-base_results_issa[!duplicated(base_results_issa[,c(1:4)]),]
+
+#split data by season into lists
+AIC_results_split <- split(AIC_results, f = AIC_results$Season)
+
+#order each season list
+AIC_results_ordered <- lapply(AIC_results_split, function(x) {
+                    x[order(x$wolf,x$Year,x$AIC),]} )
+
+#calculate delta AIC
+delta_AIC<-vector()
+AIC_weights<-vector()
+
+for (i in 1:length(AIC_results_ordered)){
+  result<-AIC_results_ordered[[i]]
+  name<-unique(result$wolf)
+
+  for (j in 1:length(name)){
+    data<-result[result$wolf==name[j],]
+    year<-unique(data$Year)
+    
+  for (k in 1:length(year)){
+    data2<-data[data$Year==year[k],]
+    if(nrow(data2)>0){
+      delta<-data2$AIC-min(data2$AIC)
+      delta_AIC<-append(delta_AIC,delta)
+    }
+    print(paste(name[j],"-",year[k]))
+  }
+}
+}
+
+#unlist data and bind delta AIC to dataset
+AIC_results_ordered <- do.call(rbind, AIC_results_ordered)
+AIC_results_ordered<-cbind(AIC_results_ordered,delta_AIC)
+
+#determine likelihood and bind to dataset
+likelihood<-exp(-0.5*AIC_results_ordered$delta_AIC)
+AIC_results_ordered<-cbind(AIC_results_ordered,likelihood)
+
+#relist data by season
+AIC_results_ordered <- split(AIC_results_ordered, f = AIC_results$Season)
+
+#create AIC weights
+for (i in 1:length(AIC_results_ordered)){
+  result<-AIC_results_ordered[[i]]
+  name<-unique(result$wolf)
+
+  for (j in 1:length(name)){
+    data<-result[result$wolf==name[j],]
+    year<-unique(data$Year)
+    
+  for (k in 1:length(year)){
+    data2<-data[data$Year==year[k],]
+    if(nrow(data2)>0){
+      weight<-data2$likelihood/sum(data2$likelihood)
+      AIC_weights<-append(AIC_weights,weight)
+    }
+    print(paste(name[j],"-",year[k]))
+  }
+}
+}
+
+#unlist data and bind to data frame
+AIC_results_ordered <- do.call(rbind, AIC_results_ordered)
+AIC_results_ordered <-cbind(AIC_results_ordered,AIC_weights)
+
+#check levels for Model
+levels(AIC_results_ordered$Model)
+
+################# Plot AIC results #####################
+
+#split data set into list by seasons
+AIC_results_ordered <- split(AIC_results_ordered, f = AIC_results$Season)
+
+#create spring AIC plot
+p_AIC_spring<-ggplot(AIC_results_ordered$spring,aes(Model,AIC_weights))+geom_boxplot() +
+ylab("Distribution of AIC weights") + 
+  xlab("  ") +
+  theme_bw(base_size=18) + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#create early summer AIC plot
+p_AIC_earlysum<-ggplot(AIC_results_ordered$earlysum,aes(Model,AIC_weights))+geom_boxplot() +
+ylab("Distribution of AIC weights") + 
+  xlab("  ") +
+  theme_bw(base_size=18) + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#create late summer AIC plot
+p_AIC_latesum<-ggplot(AIC_results_ordered$latesum,aes(Model,AIC_weights))+geom_boxplot() +
+ylab("Distribution of AIC weights") + 
+  xlab("  ") +
+  theme_bw(base_size=18) + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#create autumn AIC plot
+p_AIC_autumn<-ggplot(AIC_results_ordered$autumn,aes(Model,AIC_weights))+geom_boxplot() +
+ylab("Distribution of AIC weights") + 
+  xlab("  ") +
+  theme_bw(base_size=18) + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#create winter AIC plot
+p_AIC_winter<-ggplot(AIC_results_ordered$winter,aes(Model,AIC_weights))+geom_boxplot() +
+ylab("Distribution of AIC weights") + 
+  xlab("  ") +
+  theme_bw(base_size=18) + theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+#plot all season AIC results together
+plot_grid(p_AIC_spring, p_AIC_earlysum, p_AIC_latesum, p_AIC_autumn, p_AIC_winter,ncol=3)
+
+---------------------------------------------------
+########## Beta Coefficient Bootstrapping #########
+---------------------------------------------------
+
+#Beta coeffs - males
+wolf_sex<-read.csv("wolf_sex.csv")
+
+#load sex_age info
+results_sex_age<-merge(base_results_issa,wolf_sex,by.x=c("wolf","Year"),by.y=c("name","Year"),all.x=T)
+
+#males
+results_males_spring <-results_sex_age[results_sex_age$Season=="spring"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+results_males_earlysum <-results_sex_age[results_sex_age$Season=="earlysum"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+results_males_latesum <-results_sex_age[results_sex_age$Season=="latesum"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+results_males_autumn <-results_sex_age[results_sex_age$Season=="autumn"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+results_males_winter <-results_sex_age[results_sex_age$Season=="winter"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+
+#bootstrap spring
+b.boot<-numeric(2000)
+average<-vector()
+results_males_spring$beta<-as.numeric(as.character(results_males_spring$beta))
+results_males_spring$SE<-as.numeric(as.character(results_males_spring$SE))
+covariates_spring<-unique(results_males_spring$Covariates)
+results_males_spring_betas<-as.data.frame(setNames(replicate(length(covariates_spring),numeric(2000),simplify=F),covariates_spring))
+
+for(n in 1:ncol(results_males_spring_betas)){
+  for(j in 1:length(b.boot)){
+    wolf_bstrap<-as.vector(sample(unique(results_males_spring$wolf),length(unique(paste(results_males_spring$wolf,results_males_spring$Year)))*2,replace=T))
+    bstrap<-data.frame()
+    for (i in 1:length(wolf_bstrap)){
+      x<-results_males_spring[results_males_spring$Covariates==covariates_spring[n]&results_males_spring$wolf==wolf_bstrap[i],]
+      x2<-x[sample(nrow(x),1),]
+      bstrap<-rbind(bstrap,x2)
+      
+      median<-median(bstrap$beta)
+
+    }
+    average[j]<-median
+  }
+  results_males_spring_betas[,n]<-average
+  print(paste(n))
+}
+
+assign(paste("pop_males_spring"),results_males_spring_betas)
+
+#bootstrap early summer
+b.boot<-numeric(2000)
+average<-vector()
+results_males_earlysum$beta<-as.numeric(as.character(results_males_earlysum$beta))
+results_males_earlysum$SE<-as.numeric(as.character(results_males_earlysum$SE))
+covariates_earlysum<-unique(results_males_earlysum$Covariates)
+results_males_earlysum_betas<-as.data.frame(setNames(replicate(length(covariates_earlysum),numeric(2000),simplify=F),covariates_earlysum))
+
+for(n in 1:ncol(results_males_earlysum_betas)){
+  for(j in 1:length(b.boot)){
+    wolf_bstrap<-as.vector(sample(unique(results_males_earlysum$wolf),length(unique(paste(results_males_earlysum$wolf,results_males_earlysum$Year)))*2,replace=T))
+    bstrap<-data.frame()
+    for (i in 1:length(wolf_bstrap)){
+      x<-results_males_earlysum[results_males_earlysum$Covariates==covariates_earlysum[n]&results_males_earlysum$wolf==wolf_bstrap[i],]
+      x2<-x[sample(nrow(x),1),]
+      bstrap<-rbind(bstrap,x2)
+      
+      median<-median(bstrap$beta)
+
+    }
+    average[j]<-median
+  }
+  results_males_earlysum_betas[,n]<-average
+  print(paste(n))
+}
+
+assign(paste("pop_males_earlysum"),results_males_earlysum_betas)
+
+#bootstrap late summer
+b.boot<-numeric(2000)
+average<-vector()
+results_males_latesum$beta<-as.numeric(as.character(results_males_latesum$beta))
+results_males_latesum$SE<-as.numeric(as.character(results_males_latesum$SE))
+covariates_latesum<-unique(results_males_latesum$Covariates)
+results_males_latesum_betas<-as.data.frame(setNames(replicate(length(covariates_latesum),numeric(2000),simplify=F),covariates_latesum))
+
+for(n in 1:ncol(results_males_latesum_betas)){
+  for(j in 1:length(b.boot)){
+    wolf_bstrap<-as.vector(sample(unique(results_males_latesum$wolf),length(unique(paste(results_males_latesum$wolf,results_males_latesum$Year)))*2,replace=T))
+    bstrap<-data.frame()
+    for (i in 1:length(wolf_bstrap)){
+      x<-results_males_latesum[results_males_latesum$Covariates==covariates_latesum[n]&results_males_latesum$wolf==wolf_bstrap[i],]
+      x2<-x[sample(nrow(x),1),]
+      bstrap<-rbind(bstrap,x2)
+      
+      median<-median(bstrap$beta)
+
+    }
+    average[j]<-median
+  }
+  results_males_latesum_betas[,n]<-average
+  print(paste(n))
+}
+
+assign(paste("pop_males_latesum"),results_males_latesum_betas)
+
+#bootstrap autumn
+b.boot<-numeric(2000)
+average<-vector()
+results_males_autumn$beta<-as.numeric(as.character(results_males_autumn$beta))
+results_males_autumn$SE<-as.numeric(as.character(results_males_autumn$SE))
+covariates_autumn<-unique(results_males_autumn$Covariates)
+results_males_autumn_betas<-as.data.frame(setNames(replicate(length(covariates_autumn),numeric(2000),simplify=F),covariates_autumn))
+
+for(n in 1:ncol(results_males_autumn_betas)){
+  for(j in 1:length(b.boot)){
+    wolf_bstrap<-as.vector(sample(unique(results_males_autumn$wolf),length(unique(paste(results_males_autumn$wolf,results_males_autumn$Year)))*2,replace=T))
+    bstrap<-data.frame()
+    for (i in 1:length(wolf_bstrap)){
+      x<-results_males_autumn[results_males_autumn$Covariates==covariates_autumn[n]&results_males_autumn$wolf==wolf_bstrap[i],]
+      x2<-x[sample(nrow(x),1),]
+      bstrap<-rbind(bstrap,x2)
+      
+      median<-median(bstrap$beta)
+
+    }
+    average[j]<-median
+  }
+  results_males_autumn_betas[,n]<-average
+  print(paste(n))
+}
+
+assign(paste("pop_males_autumn"),results_males_autumn_betas)
+
+#bootstrap winter
+b.boot<-numeric(2000)
+average<-vector()
+results_males_winter$beta<-as.numeric(as.character(results_males_winter$beta))
+results_males_winter$SE<-as.numeric(as.character(results_males_winter$SE))
+covariates_winter<-unique(results_males_winter$Covariates)
+results_males_winter_betas<-as.data.frame(setNames(replicate(length(covariates_winter),numeric(2000),simplify=F),covariates_winter))
+
+for(n in 1:ncol(results_males_winter_betas)){
+  for(j in 1:length(b.boot)){
+    wolf_bstrap<-as.vector(sample(unique(results_males_winter$wolf),length(unique(paste(results_males_winter$wolf,results_males_winter$Year)))*2,replace=T))
+    bstrap<-data.frame()
+    for (i in 1:length(wolf_bstrap)){
+      x<-results_males_winter[results_males_winter$Covariates==covariates_winter[n]&results_males_winter$wolf==wolf_bstrap[i],]
+      x2<-x[sample(nrow(x),1),]
+      bstrap<-rbind(bstrap,x2)
+      
+      median<-median(bstrap$beta)
+
+    }
+    average[j]<-median
+  }
+  results_males_winter_betas[,n]<-average
+  print(paste(n))
+}
+
+assign(paste("pop_males_winter"),results_males_winter_betas)
+
+-----------------------------------
+### MOVEMENT BETAS ###
+-----------------------------------
+
+########## spring movement betas ###########
+
+#make betas data frame
+movement_betas_spring<-cbind(pop_males_spring[,c(grep("lnSL", colnames(pop_males_spring)))])
+movement_betas_spring_long<-stack(movement_betas_spring) #long form
+covariate_spring<-as.vector(gsub(".1","",movement_betas_spring_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_spring<-as.vector(gsub(".2","",covariate_spring)) ##create covariate column without .1 next to covariate names
+covariate_spring<-as.vector(gsub(".3","",covariate_spring)) ##create covariate column without .1 next to covariate names
+movement_betas_spring_long<-as.data.frame(cbind(movement_betas_spring_long$values,covariate_spring)) # bind together
+colnames(movement_betas_spring_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_spring<-as.vector(c(rep("male",12000),rep("female",0))) ##create sex column
+movement_betas_spring_long<-cbind(movement_betas_spring_long,Reproductive_class_spring) ##bind with rest of table
+movement_betas_spring_long$Beta<-as.numeric(as.character(movement_betas_spring_long$Beta)) ##convert beta to numeric
+movement_betas_spring_long$Reproductive_class_spring<-factor(movement_betas_spring_long$Reproductive_class_spring,levels = c("male"))
+
+#replace covariate names
+movement_betas_spring_long$Covariate<-as.character(movement_betas_spring_long$Covariate)
+movement_betas_spring_long$Covariate<-replace(movement_betas_spring_long$Covariate,movement_betas_spring_long$Covariate=="lnSL.ln_start_roaddist","lnSL:roaddist") #replaces text
+movement_betas_spring_long$Covariate<-replace(movement_betas_spring_long$Covariate,movement_betas_spring_long$Covariate=="lnSL.sinhour","lnSL:sinhour") #replaces text
+movement_betas_spring_long$Covariate<-replace(movement_betas_spring_long$Covariate,movement_betas_spring_long$Covariate=="lnSL.start_cutageclass_ne","lnSL:newcut") #replaces text
+movement_betas_spring_long$Covariate<-replace(movement_betas_spring_long$Covariate,movement_betas_spring_long$Covariate=="lnSL.start_cutageclass_rege","lnSL:regencut") #replaces text
+movement_betas_spring_long$Covariate<-replace(movement_betas_spring_long$Covariate,movement_betas_spring_long$Covariate=="lnSL.start_roaddens","lnSL:roaddens") #replaces text
+
+#make covariate column into factor
+movement_betas_spring_long$Covariate<-as.factor(movement_betas_spring_long$Covariate)
+levels(movement_betas_spring_long$Covariate)
+
+movement_fixed_spring<-movement_betas_spring_long[movement_betas_spring_long$Covariate=="lnSL"|movement_betas_spring_long$Covariate=="lnSL:sinhour"|movement_betas_spring_long$Covariate=="lnSL:roaddens"|movement_betas_spring_long$Covariate=="lnSL:roaddist"|movement_betas_spring_long$Covariate=="lnSL:newcut"|movement_betas_spring_long$Covariate=="lnSL:regencut",]
+movement_fixed_spring$season <- "spring"
+
+movement_spring<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_spring) + 
+  geom_boxplot(width=0.5, lwd = 1.5,
+               outlier.shape = NA) +
+  theme_bw(base_size = 60) +
+    scale_fill_grey(start=0.3)+
+   scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=3),
+        panel.background = element_blank(),
+        legend.position = "none") +
+        geom_hline(yintercept=0,col="red",lwd=2)
+
+### SUMMARY TABLE ###
+betas_movement_spring<-group_by(movement_betas_spring_long,Covariate,Reproductive_class_spring) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+########## early summer movement betas ###########
+
+#make betas data frame
+movement_betas_earlysum<-cbind(pop_males_earlysum[,c(grep("lnSL", colnames(pop_males_earlysum)))])
+movement_betas_earlysum_long<-stack(movement_betas_earlysum) #long form
+covariate_earlysum<-as.vector(gsub(".1","",movement_betas_earlysum_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_earlysum<-as.vector(gsub(".2","",covariate_earlysum)) ##create covariate column without .1 next to covariate names
+covariate_earlysum<-as.vector(gsub(".3","",covariate_earlysum)) ##create covariate column without .1 next to covariate names
+movement_betas_earlysum_long<-as.data.frame(cbind(movement_betas_earlysum_long$values,covariate_earlysum)) # bind together
+colnames(movement_betas_earlysum_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_earlysum<-as.vector(c(rep("male",12000),rep("female",0))) ##create sex column
+movement_betas_earlysum_long<-cbind(movement_betas_earlysum_long,Reproductive_class_earlysum) ##bind with rest of table
+movement_betas_earlysum_long$Beta<-as.numeric(as.character(movement_betas_earlysum_long$Beta)) ##convert beta to numeric
+movement_betas_earlysum_long$Reproductive_class_earlysum<-factor(movement_betas_earlysum_long$Reproductive_class_earlysum,levels = c("male"))
+
+#replace covariate names
+movement_betas_earlysum_long$Covariate<-as.character(movement_betas_earlysum_long$Covariate)
+movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Covariate,movement_betas_earlysum_long$Covariate=="lnSL.ln_start_roaddist","lnSL:roaddist") #replaces text
+movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Covariate,movement_betas_earlysum_long$Covariate=="lnSL.sinhour","lnSL:sinhour") #replaces text
+movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Covariate,movement_betas_earlysum_long$Covariate=="lnSL.start_cutageclass_ne","lnSL:newcut") #replaces text
+movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Covariate,movement_betas_earlysum_long$Covariate=="lnSL.start_cutageclass_rege","lnSL:regencut") #replaces text
+movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Covariate,movement_betas_earlysum_long$Covariate=="lnSL.start_roaddens","lnSL:roaddens") #replaces text
+
+#make covariate column into factor
+movement_betas_earlysum_long$Covariate<-as.factor(movement_betas_earlysum_long$Covariate)
+levels(movement_betas_earlysum_long$Covariate)
+
+movement_fixed_earlysum<-movement_betas_earlysum_long[movement_betas_earlysum_long$Covariate=="lnSL"|movement_betas_earlysum_long$Covariate=="lnSL:sinhour"|movement_betas_earlysum_long$Covariate=="lnSL:roaddens"|movement_betas_earlysum_long$Covariate=="lnSL:roaddist"|movement_betas_earlysum_long$Covariate=="lnSL:newcut"|movement_betas_earlysum_long$Covariate=="lnSL:regencut",]
+movement_fixed_earlysum$season <- "earlysum"
+
+movement_earlysum<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_earlysum) + 
+  geom_boxplot(width=0.5, lwd = 1.5,
+               outlier.shape = NA) +
+  theme_bw(base_size = 60) +
+    scale_fill_grey(start=0.3)+
+   scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=3),
+        panel.background = element_blank(),
+        legend.position = "none") +
+        geom_hline(yintercept=0,col="red",lwd=2)
+movement_earlysum
+
+########## late summer movement betas ###########
+
+#make betas data frame
+movement_betas_latesum<-cbind(pop_males_latesum[,c(grep("lnSL", colnames(pop_males_latesum)))])
+movement_betas_latesum_long<-stack(movement_betas_latesum) #long form
+covariate_latesum<-as.vector(gsub(".1","",movement_betas_latesum_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_latesum<-as.vector(gsub(".2","",covariate_latesum)) ##create covariate column without .1 next to covariate names
+covariate_latesum<-as.vector(gsub(".3","",covariate_latesum)) ##create covariate column without .1 next to covariate names
+movement_betas_latesum_long<-as.data.frame(cbind(movement_betas_latesum_long$values,covariate_latesum)) # bind together
+colnames(movement_betas_latesum_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_latesum<-as.vector(c(rep("male",12000),rep("female",0))) ##create sex column
+movement_betas_latesum_long<-cbind(movement_betas_latesum_long,Reproductive_class_latesum) ##bind with rest of table
+movement_betas_latesum_long$Beta<-as.numeric(as.character(movement_betas_latesum_long$Beta)) ##convert beta to numeric
+movement_betas_latesum_long$Reproductive_class_latesum<-factor(movement_betas_latesum_long$Reproductive_class_latesum,levels = c("male"))
+
+#replace covariate names
+movement_betas_latesum_long$Covariate<-as.character(movement_betas_latesum_long$Covariate)
+movement_betas_latesum_long$Covariate<-replace(movement_betas_latesum_long$Covariate,movement_betas_latesum_long$Covariate=="lnSL.ln_start_roaddist","lnSL:roaddist") #replaces text
+movement_betas_latesum_long$Covariate<-replace(movement_betas_latesum_long$Covariate,movement_betas_latesum_long$Covariate=="lnSL.sinhour","lnSL:sinhour") #replaces text
+movement_betas_latesum_long$Covariate<-replace(movement_betas_latesum_long$Covariate,movement_betas_latesum_long$Covariate=="lnSL.start_cutageclass_ne","lnSL:newcut") #replaces text
+movement_betas_latesum_long$Covariate<-replace(movement_betas_latesum_long$Covariate,movement_betas_latesum_long$Covariate=="lnSL.start_cutageclass_rege","lnSL:regencut") #replaces text
+movement_betas_latesum_long$Covariate<-replace(movement_betas_latesum_long$Covariate,movement_betas_latesum_long$Covariate=="lnSL.start_roaddens","lnSL:roaddens") #replaces text
+
+#make covariate column into factor
+movement_betas_latesum_long$Covariate<-as.factor(movement_betas_latesum_long$Covariate)
+levels(movement_betas_latesum_long$Covariate)
+
+movement_fixed_latesum<-movement_betas_latesum_long[movement_betas_latesum_long$Covariate=="lnSL"|movement_betas_latesum_long$Covariate=="lnSL:sinhour"|movement_betas_latesum_long$Covariate=="lnSL:roaddens"|movement_betas_latesum_long$Covariate=="lnSL:roaddist"|movement_betas_latesum_long$Covariate=="lnSL:newcut"|movement_betas_latesum_long$Covariate=="lnSL:regencut",]
+movement_fixed_latesum$season <- "latesum"
+
+movement_latesum<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_latesum) + 
+  geom_boxplot(width=0.5, lwd = 1.5,
+               outlier.shape = NA) +
+  theme_bw(base_size = 60) +
+    scale_fill_grey(start=0.3)+
+   scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=3),
+        panel.background = element_blank(),
+        legend.position = "none") +
+        geom_hline(yintercept=0,col="red",lwd=2)
+movement_latesum
+########## autumn movement betas ###########
+
+#make betas data frame
+movement_betas_autumn<-cbind(pop_males_autumn[,c(grep("lnSL", colnames(pop_males_autumn)))])
+movement_betas_autumn_long<-stack(movement_betas_autumn) #long form
+covariate_autumn<-as.vector(gsub(".1","",movement_betas_autumn_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_autumn<-as.vector(gsub(".2","",covariate_autumn)) ##create covariate column without .1 next to covariate names
+covariate_autumn<-as.vector(gsub(".3","",covariate_autumn)) ##create covariate column without .1 next to covariate names
+movement_betas_autumn_long<-as.data.frame(cbind(movement_betas_autumn_long$values,covariate_autumn)) # bind together
+colnames(movement_betas_autumn_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_autumn<-as.vector(c(rep("male",12000),rep("female",0))) ##create sex column
+movement_betas_autumn_long<-cbind(movement_betas_autumn_long,Reproductive_class_autumn) ##bind with rest of table
+movement_betas_autumn_long$Beta<-as.numeric(as.character(movement_betas_autumn_long$Beta)) ##convert beta to numeric
+movement_betas_autumn_long$Reproductive_class_autumn<-factor(movement_betas_autumn_long$Reproductive_class_autumn,levels = c("male"))
+
+#replace covariate names
+movement_betas_autumn_long$Covariate<-as.character(movement_betas_autumn_long$Covariate)
+movement_betas_autumn_long$Covariate<-replace(movement_betas_autumn_long$Covariate,movement_betas_autumn_long$Covariate=="lnSL.ln_start_roaddist","lnSL:roaddist") #replaces text
+movement_betas_autumn_long$Covariate<-replace(movement_betas_autumn_long$Covariate,movement_betas_autumn_long$Covariate=="lnSL.sinhour","lnSL:sinhour") #replaces text
+movement_betas_autumn_long$Covariate<-replace(movement_betas_autumn_long$Covariate,movement_betas_autumn_long$Covariate=="lnSL.start_cutageclass_ne","lnSL:newcut") #replaces text
+movement_betas_autumn_long$Covariate<-replace(movement_betas_autumn_long$Covariate,movement_betas_autumn_long$Covariate=="lnSL.start_cutageclass_rege","lnSL:regencut") #replaces text
+movement_betas_autumn_long$Covariate<-replace(movement_betas_autumn_long$Covariate,movement_betas_autumn_long$Covariate=="lnSL.start_roaddens","lnSL:roaddens") #replaces text
+
+#make covariate column into factor
+movement_betas_autumn_long$Covariate<-as.factor(movement_betas_autumn_long$Covariate)
+levels(movement_betas_autumn_long$Covariate)
+
+movement_fixed_autumn<-movement_betas_autumn_long[movement_betas_autumn_long$Covariate=="lnSL"|movement_betas_autumn_long$Covariate=="lnSL:sinhour"|movement_betas_autumn_long$Covariate=="lnSL:roaddens"|movement_betas_autumn_long$Covariate=="lnSL:roaddist"|movement_betas_autumn_long$Covariate=="lnSL:newcut"|movement_betas_autumn_long$Covariate=="lnSL:regencut",]
+movement_fixed_autumn$season <- "autumn"
+
+movement_autumn<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_autumn) + 
+  geom_boxplot(width=0.5, lwd = 1.5,
+               outlier.shape = NA) +
+  theme_bw(base_size = 60) +
+    scale_fill_grey(start=0.3)+
+   scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=3),
+        panel.background = element_blank(),
+        legend.position = "none") +
+        geom_hline(yintercept=0,col="red",lwd=2)
+movement_autumn
+########## winter movement betas ###########
+
+#make betas data frame
+movement_betas_winter<-cbind(pop_males_winter[,c(grep("lnSL", colnames(pop_males_winter)))])
+movement_betas_winter_long<-stack(movement_betas_winter) #long form
+covariate_winter<-as.vector(gsub(".1","",movement_betas_winter_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_winter<-as.vector(gsub(".2","",covariate_winter)) ##create covariate column without .1 next to covariate names
+covariate_winter<-as.vector(gsub(".3","",covariate_winter)) ##create covariate column without .1 next to covariate names
+movement_betas_winter_long<-as.data.frame(cbind(movement_betas_winter_long$values,covariate_winter)) # bind together
+colnames(movement_betas_winter_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_winter<-as.vector(c(rep("male",12000),rep("female",0))) ##create sex column
+movement_betas_winter_long<-cbind(movement_betas_winter_long,Reproductive_class_winter) ##bind with rest of table
+movement_betas_winter_long$Beta<-as.numeric(as.character(movement_betas_winter_long$Beta)) ##convert beta to numeric
+movement_betas_winter_long$Reproductive_class_winter<-factor(movement_betas_winter_long$Reproductive_class_winter,levels = c("male"))
+
+#replace covariate names
+movement_betas_winter_long$Covariate<-as.character(movement_betas_winter_long$Covariate)
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.ln_start_roaddist","lnSL:roaddist") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.sinhour","lnSL:sinhour") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_ne","lnSL:newcut") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_rege","lnSL:regencut") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_roaddens","lnSL:roaddens") #replaces text
+
+#make covariate column into factor
+movement_betas_winter_long$Covariate<-as.factor(movement_betas_winter_long$Covariate)
+levels(movement_betas_winter_long$Covariate)
+
+movement_fixed_winter<-movement_betas_winter_long[movement_betas_winter_long$Covariate=="lnSL"|movement_betas_winter_long$Covariate=="lnSL:sinhour"|movement_betas_winter_long$Covariate=="lnSL:roaddens"|movement_betas_winter_long$Covariate=="lnSL:roaddist"|movement_betas_winter_long$Covariate=="lnSL:newcut"|movement_betas_winter_long$Covariate=="lnSL:regencut",]
+movement_fixed_winter$season <- "winter"
+
+movement_winter<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_winter) + 
+  geom_boxplot(width=0.5, lwd = 1.5,
+               outlier.shape = NA) +
+  theme_bw(base_size = 60) +
+    scale_fill_grey(start=0.3)+
+   scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=3),
+        panel.background = element_blank(),
+        legend.position = "none") +
+        geom_hline(yintercept=0,col="red",lwd=2)
+movement_winter
+
+### SUMMARY TABLE ###
+betas_movement_winter<-group_by(movement_betas_winter_long,Covariate,Reproductive_class_winter) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+############ Plot all movement betas ##############
+plot_grid(movement_spring,movement_earlysum,movement_latesum,movement_autumn,movement_winter,ncol=3)
+
+colnames(movement_fixed_spring)[3] <- "Reproductiveclass"
+colnames(movement_fixed_earlysum)[3] <- "Reproductiveclass"
+colnames(movement_fixed_latesum)[3] <- "Reproductiveclass"
+colnames(movement_fixed_autumn)[3] <- "Reproductiveclass"
+colnames(movement_fixed_winter)[3] <- "Reproductiveclass"
+
+movement_fixed_betas_allseasons <- rbind(movement_fixed_spring,movement_fixed_earlysum,movement_fixed_latesum, movement_fixed_autumn,movement_fixed_winter)
+movement_fixed_betas_allseasons$season <- factor(movement_fixed_betas_allseasons$season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
+
+
+movement_annual<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_betas_allseasons, width=2) + 
+  geom_boxplot(aes(fill = season),width=0.8, lwd = 1,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.85,0.95), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-0.1, 0.8)+
+  scale_fill_viridis(discrete=TRUE)
+movement_annual
+
+-----------------------------------
+####### HABITAT BETAS ########
+-----------------------------------
+  
+########## spring habitat betas ###########
+
+#make betas data frame
+habitat_betas_spring<-cbind(pop_males_spring[,-c(grep("lnSL", colnames(pop_males_spring)))])
+habitat_betas_spring_long<-stack(habitat_betas_spring) #long form
+covariate_spring<-as.vector(gsub(".1","",habitat_betas_spring_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_spring<-as.vector(gsub(".2","",covariate_spring)) ##create covariate column without .1 next to covariate names
+covariate_spring<-as.vector(gsub(".3","",covariate_spring)) ##create covariate column without .1 next to covariate names
+habitat_betas_spring_long<-as.data.frame(cbind(habitat_betas_spring_long$values,covariate_spring)) # bind together
+colnames(habitat_betas_spring_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_spring<-as.vector(c(rep("male",42000),rep("female",0))) ##create sex column
+habitat_betas_spring_long<-cbind(habitat_betas_spring_long,Reproductive_class_spring) ##bind with rest of table
+habitat_betas_spring_long$Beta<-as.numeric(as.character(habitat_betas_spring_long$Beta)) ##convert beta to numeric
+habitat_betas_spring_long$Reproductive_class_spring<-factor(habitat_betas_spring_long$Reproductive_class_spring,levels = c("male"))
+
+#replace covariate names
+habitat_betas_spring_long$Covariate<-as.character(habitat_betas_spring_long$Covariate)
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_ne","newcut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_ne.end_sizeha","newcut:cutsize") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_rege","regencut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_rege.end_sizeha","regencut:cutsize") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_edgein","edgein") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_edgeout","edgeout") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_elevation","elevation") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_Coniferou","coniferous") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_Deciduou","deciduous") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_MixedFores","mixedforest") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_Pin","pine") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_NDVI","NDVI") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_roaddens.sinhour","roaddens:sin(hour)") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_sizeha","cutsize") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_slope","slope") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist","lnroaddist") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","lnroaddist:newcut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","lnroaddist:regencut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_water","lndistwater") #replaces text
+
+#make covariate column into factor
+habitat_betas_spring_long$Covariate<-as.factor(habitat_betas_spring_long$Covariate)
+levels(habitat_betas_spring_long$Covariate)
+habitat_betas_spring_long$season <- "spring"
+
+habitat_fixed_landcover_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="coniferous"|habitat_betas_spring_long$Covariate=="deciduous"|habitat_betas_spring_long$Covariate=="mixedforest"|habitat_betas_spring_long$Covariate=="pine"|habitat_betas_spring_long$Covariate=="lndistwater"|habitat_betas_spring_long$Covariate=="NDVI"|habitat_betas_spring_long$Covariate=="elevation"|habitat_betas_spring_long$Covariate=="slope",]
+habitat_fixed_roads_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="lnroaddist"|habitat_betas_spring_long$Covariate=="lnroaddist:newcut"|habitat_betas_spring_long$Covariate=="lnroaddist:regencut"|habitat_betas_spring_long$Covariate=="roaddens"|habitat_betas_spring_long$Covariate=="roaddens:sin(hour)",]
+habitat_fixed_cuts_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="cutsize"|habitat_betas_spring_long$Covariate=="cutsize:NDVI"|habitat_betas_spring_long$Covariate=="edgein"|habitat_betas_spring_long$Covariate=="edgeout"|habitat_betas_spring_long$Covariate=="newcut"|habitat_betas_spring_long$Covariate=="newcut:cutsize"|habitat_betas_spring_long$Covariate=="regencut"|habitat_betas_spring_long$Covariate=="regencut:cutsize",]
+ 
+### SUMMARY TABLE ###
+betas_habitat_spring<-group_by(habitat_betas_spring_long,Covariate,Reproductive_class_spring) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+########## early summer habitat betas ###########
+
+#make betas data frame
+habitat_betas_earlysum<-cbind(pop_males_earlysum[,-c(grep("lnSL", colnames(pop_males_earlysum)))])
+habitat_betas_earlysum_long<-stack(habitat_betas_earlysum) #long form
+covariate_earlysum<-as.vector(gsub(".1","",habitat_betas_earlysum_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_earlysum<-as.vector(gsub(".2","",covariate_earlysum)) ##create covariate column without .1 next to covariate names
+covariate_earlysum<-as.vector(gsub(".3","",covariate_earlysum)) ##create covariate column without .1 next to covariate names
+habitat_betas_earlysum_long<-as.data.frame(cbind(habitat_betas_earlysum_long$values,covariate_earlysum)) # bind together
+colnames(habitat_betas_earlysum_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_earlysum<-as.vector(c(rep("male",42000),rep("female",0))) ##create sex column
+habitat_betas_earlysum_long<-cbind(habitat_betas_earlysum_long,Reproductive_class_earlysum) ##bind with rest of table
+habitat_betas_earlysum_long$Beta<-as.numeric(as.character(habitat_betas_earlysum_long$Beta)) ##convert beta to numeric
+habitat_betas_earlysum_long$Reproductive_class_earlysum<-factor(habitat_betas_earlysum_long$Reproductive_class_earlysum,levels = c("male"))
+
+#replace covariate names
+habitat_betas_earlysum_long$Covariate<-as.character(habitat_betas_earlysum_long$Covariate)
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_ne","newcut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_ne.end_sizeha","newcut:cutsize") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_rege","regencut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_rege.end_sizeha","regencut:cutsize") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_edgein","edgein") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_edgeout","edgeout") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_elevation","elevation") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_Coniferou","coniferous") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_Deciduou","deciduous") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_MixedFores","mixedforest") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_Pin","pine") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_NDVI","NDVI") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_roaddens.sinhour","roaddens:sin(hour)") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_sizeha","cutsize") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_slope","slope") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist","lnroaddist") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","lnroaddist:newcut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","lnroaddist:regencut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_water","lndistwater") #replaces text
+
+#make covariate column into factor
+habitat_betas_earlysum_long$Covariate<-as.factor(habitat_betas_earlysum_long$Covariate)
+levels(habitat_betas_earlysum_long$Covariate)
+habitat_betas_earlysum_long$season <- "earlysum"
+
+habitat_fixed_landcover_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="coniferous"|habitat_betas_earlysum_long$Covariate=="deciduous"|habitat_betas_earlysum_long$Covariate=="mixedforest"|habitat_betas_earlysum_long$Covariate=="pine"|habitat_betas_earlysum_long$Covariate=="lndistwater"|habitat_betas_earlysum_long$Covariate=="NDVI"|habitat_betas_earlysum_long$Covariate=="elevation"|habitat_betas_earlysum_long$Covariate=="slope",]
+habitat_fixed_roads_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="lnroaddist"|habitat_betas_earlysum_long$Covariate=="lnroaddist:newcut"|habitat_betas_earlysum_long$Covariate=="lnroaddist:regencut"|habitat_betas_earlysum_long$Covariate=="roaddens"|habitat_betas_earlysum_long$Covariate=="roaddens:sin(hour)",]
+habitat_fixed_cuts_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="cutsize"|habitat_betas_earlysum_long$Covariate=="cutsize:NDVI"|habitat_betas_earlysum_long$Covariate=="edgein"|habitat_betas_earlysum_long$Covariate=="edgeout"|habitat_betas_earlysum_long$Covariate=="newcut"|habitat_betas_earlysum_long$Covariate=="newcut:cutsize"|habitat_betas_earlysum_long$Covariate=="regencut"|habitat_betas_earlysum_long$Covariate=="regencut:cutsize",]
+
+### SUMMARY TABLE ###
+betas_habitat_earlysum<-group_by(habitat_betas_earlysum_long,Covariate,Reproductive_class_earlysum) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+########## late summer habitat betas ##########
+
+#make betas data frame
+habitat_betas_latesum<-cbind(pop_males_latesum[,-c(grep("lnSL", colnames(pop_males_latesum)))])
+habitat_betas_latesum_long<-stack(habitat_betas_latesum) #long form
+covariate_latesum<-as.vector(gsub(".1","",habitat_betas_latesum_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_latesum<-as.vector(gsub(".2","",covariate_latesum)) ##create covariate column without .1 next to covariate names
+covariate_latesum<-as.vector(gsub(".3","",covariate_latesum)) ##create covariate column without .1 next to covariate names
+habitat_betas_latesum_long<-as.data.frame(cbind(habitat_betas_latesum_long$values,covariate_latesum)) # bind together
+colnames(habitat_betas_latesum_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_latesum<-as.vector(c(rep("male",42000),rep("female",0))) ##create sex column
+habitat_betas_latesum_long<-cbind(habitat_betas_latesum_long,Reproductive_class_latesum) ##bind with rest of table
+habitat_betas_latesum_long$Beta<-as.numeric(as.character(habitat_betas_latesum_long$Beta)) ##convert beta to numeric
+habitat_betas_latesum_long$Reproductive_class_latesum<-factor(habitat_betas_latesum_long$Reproductive_class_latesum,levels = c("male"))
+
+#replace covariate names
+habitat_betas_latesum_long$Covariate<-as.character(habitat_betas_latesum_long$Covariate)
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_ne","newcut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_ne.end_sizeha","newcut:cutsize") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_rege","regencut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_rege.end_sizeha","regencut:cutsize") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_edgein","edgein") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_edgeout","edgeout") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_elevation","elevation") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_Coniferou","coniferous") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_Deciduou","deciduous") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_MixedFores","mixedforest") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_Pin","pine") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_NDVI","NDVI") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_roaddens.sinhour","roaddens:sin(hour)") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_sizeha","cutsize") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_slope","slope") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist","lnroaddist") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","lnroaddist:newcut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","lnroaddist:regencut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_water","lndistwater") #replaces text
+
+#make covariate column into factor
+habitat_betas_latesum_long$Covariate<-as.factor(habitat_betas_latesum_long$Covariate)
+levels(habitat_betas_latesum_long$Covariate)
+habitat_betas_latesum_long$season <- "latesum"
+
+habitat_fixed_landcover_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="coniferous"|habitat_betas_latesum_long$Covariate=="deciduous"|habitat_betas_latesum_long$Covariate=="mixedforest"|habitat_betas_latesum_long$Covariate=="pine"|habitat_betas_latesum_long$Covariate=="lndistwater"|habitat_betas_latesum_long$Covariate=="NDVI"|habitat_betas_latesum_long$Covariate=="elevation"|habitat_betas_latesum_long$Covariate=="slope",]
+habitat_fixed_roads_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="lnroaddist"|habitat_betas_latesum_long$Covariate=="lnroaddist:newcut"|habitat_betas_latesum_long$Covariate=="lnroaddist:regencut"|habitat_betas_latesum_long$Covariate=="roaddens"|habitat_betas_latesum_long$Covariate=="roaddens:sin(hour)",]
+habitat_fixed_cuts_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="cutsize"|habitat_betas_latesum_long$Covariate=="cutsize:NDVI"|habitat_betas_latesum_long$Covariate=="edgein"|habitat_betas_latesum_long$Covariate=="edgeout"|habitat_betas_latesum_long$Covariate=="newcut"|habitat_betas_latesum_long$Covariate=="newcut:cutsize"|habitat_betas_latesum_long$Covariate=="regencut"|habitat_betas_latesum_long$Covariate=="regencut:cutsize",]
+
+### SUMMARY TABLE ###
+betas_habitat_latesum<-group_by(habitat_betas_latesum_long,Covariate,Reproductive_class_latesum) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+########## autumn habitat betas ###########
+
+#make betas data frame
+habitat_betas_autumn<-cbind(pop_males_autumn[,-c(grep("lnSL", colnames(pop_males_autumn)))])
+habitat_betas_autumn_long<-stack(habitat_betas_autumn) #long form
+covariate_autumn<-as.vector(gsub(".1","",habitat_betas_autumn_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_autumn<-as.vector(gsub(".2","",covariate_autumn)) ##create covariate column without .1 next to covariate names
+covariate_autumn<-as.vector(gsub(".3","",covariate_autumn)) ##create covariate column without .1 next to covariate names
+habitat_betas_autumn_long<-as.data.frame(cbind(habitat_betas_autumn_long$values,covariate_autumn)) # bind together
+colnames(habitat_betas_autumn_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_autumn<-as.vector(c(rep("male",42000),rep("female",0))) ##create sex column
+habitat_betas_autumn_long<-cbind(habitat_betas_autumn_long,Reproductive_class_autumn) ##bind with rest of table
+habitat_betas_autumn_long$Beta<-as.numeric(as.character(habitat_betas_autumn_long$Beta)) ##convert beta to numeric
+habitat_betas_autumn_long$Reproductive_class_autumn<-factor(habitat_betas_autumn_long$Reproductive_class_autumn,levels = c("male"))
+
+#replace covariate names
+habitat_betas_autumn_long$Covariate<-as.character(habitat_betas_autumn_long$Covariate)
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_ne","newcut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_ne.end_sizeha","newcut:cutsize") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_rege","regencut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_rege.end_sizeha","regencut:cutsize") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_edgein","edgein") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_edgeout","edgeout") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_elevation","elevation") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_Coniferou","coniferous") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_Deciduou","deciduous") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_MixedFores","mixedforest") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_Pin","pine") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_NDVI","NDVI") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_roaddens.sinhour","roaddens:sin(hour)") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_sizeha","cutsize") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_slope","slope") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist","lnroaddist") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","lnroaddist:newcut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","lnroaddist:regencut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_water","lndistwater") #replaces text
+
+#make covariate column into factor
+habitat_betas_autumn_long$Covariate<-as.factor(habitat_betas_autumn_long$Covariate)
+levels(habitat_betas_autumn_long$Covariate)
+habitat_betas_autumn_long$season <- "autumn"
+
+habitat_fixed_landcover_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="coniferous"|habitat_betas_autumn_long$Covariate=="deciduous"|habitat_betas_autumn_long$Covariate=="mixedforest"|habitat_betas_autumn_long$Covariate=="pine"|habitat_betas_autumn_long$Covariate=="lndistwater"|habitat_betas_autumn_long$Covariate=="NDVI"|habitat_betas_autumn_long$Covariate=="elevation"|habitat_betas_autumn_long$Covariate=="slope",]
+habitat_fixed_roads_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="lnroaddist"|habitat_betas_autumn_long$Covariate=="lnroaddist:newcut"|habitat_betas_autumn_long$Covariate=="lnroaddist:regencut"|habitat_betas_autumn_long$Covariate=="roaddens"|habitat_betas_autumn_long$Covariate=="roaddens:sin(hour)",]
+habitat_fixed_cuts_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="cutsize"|habitat_betas_autumn_long$Covariate=="cutsize:NDVI"|habitat_betas_autumn_long$Covariate=="edgein"|habitat_betas_autumn_long$Covariate=="edgeout"|habitat_betas_autumn_long$Covariate=="newcut"|habitat_betas_autumn_long$Covariate=="newcut:cutsize"|habitat_betas_autumn_long$Covariate=="regencut"|habitat_betas_autumn_long$Covariate=="regencut:cutsize",]
+
+### SUMMARY TABLE ###
+betas_habitat_autumn<-group_by(habitat_betas_autumn_long,Covariate,Reproductive_class_autumn) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+########## winter habitat betas ###########
+
+#make betas data frame
+habitat_betas_winter<-cbind(pop_males_winter[,-c(grep("lnSL", colnames(pop_males_winter)))])
+habitat_betas_winter_long<-stack(habitat_betas_winter) #long form
+covariate_winter<-as.vector(gsub(".1","",habitat_betas_winter_long$ind)) ##create covariate column without .1 next to covariate names
+covariate_winter<-as.vector(gsub(".2","",covariate_winter)) ##create covariate column without .1 next to covariate names
+covariate_winter<-as.vector(gsub(".3","",covariate_winter)) ##create covariate column without .1 next to covariate names
+habitat_betas_winter_long<-as.data.frame(cbind(habitat_betas_winter_long$values,covariate_winter)) # bind together
+colnames(habitat_betas_winter_long)<-c("Beta","Covariate") ## rename columns
+Reproductive_class_winter<-as.vector(c(rep("male",42000),rep("female",0))) ##create sex column
+habitat_betas_winter_long<-cbind(habitat_betas_winter_long,Reproductive_class_winter) ##bind with rest of table
+habitat_betas_winter_long$Beta<-as.numeric(as.character(habitat_betas_winter_long$Beta)) ##convert beta to numeric
+habitat_betas_winter_long$Reproductive_class_winter<-factor(habitat_betas_winter_long$Reproductive_class_winter,levels = c("male"))
+
+#replace covariate names
+habitat_betas_winter_long$Covariate<-as.character(habitat_betas_winter_long$Covariate)
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne","newcut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne.end_sizeha","newcut:cutsize") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege","regencut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege.end_sizeha","regencut:cutsize") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_edgein","edgein") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_edgeout","edgeout") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_elevation","elevation") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Coniferou","coniferous") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Deciduou","deciduous") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_MixedFores","mixedforest") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Pin","pine") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_NDVI","NDVI") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_roaddens.sinhour","roaddens:sin(hour)") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_roaddens","roaddens") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_sizeha","cutsize") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_slope","slope") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_sizeha.end_NDVI","cutsize:NDVI") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist","lnroaddist") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","lnroaddist:newcut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","lnroaddist:regencut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_water","lndistwater") #replaces text
+
+#make covariate column into factor
+habitat_betas_winter_long$Covariate<-as.factor(habitat_betas_winter_long$Covariate)
+levels(habitat_betas_winter_long$Covariate)
+habitat_betas_winter_long$season <- "winter"
+
+habitat_fixed_landcover_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="coniferous"|habitat_betas_winter_long$Covariate=="deciduous"|habitat_betas_winter_long$Covariate=="mixedforest"|habitat_betas_winter_long$Covariate=="pine"|habitat_betas_winter_long$Covariate=="lndistwater"|habitat_betas_winter_long$Covariate=="NDVI"|habitat_betas_winter_long$Covariate=="elevation"|habitat_betas_winter_long$Covariate=="slope",]
+habitat_fixed_roads_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="lnroaddist"|habitat_betas_winter_long$Covariate=="lnroaddist:newcut"|habitat_betas_winter_long$Covariate=="lnroaddist:regencut"|habitat_betas_winter_long$Covariate=="roaddens"|habitat_betas_winter_long$Covariate=="roaddens:sin(hour)",]
+habitat_fixed_cuts_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="cutsize"|habitat_betas_winter_long$Covariate=="cutsize:NDVI"|habitat_betas_winter_long$Covariate=="edgein"|habitat_betas_winter_long$Covariate=="edgeout"|habitat_betas_winter_long$Covariate=="newcut"|habitat_betas_winter_long$Covariate=="newcut:cutsize"|habitat_betas_winter_long$Covariate=="regencut"|habitat_betas_winter_long$Covariate=="regencut:cutsize",]
+
+### SUMMARY TABLE ###
+betas_habitat_winter<-group_by(habitat_betas_winter_long,Covariate,Reproductive_class_winter) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
+
+############ Plot all habitat betas ##############
+plot_grid(habitat_spring,habitat_earlysum,habitat_latesum,habitat_autumn,habitat_winter,ncol=3)
+
+colnames(habitat_fixed_landcover_spring)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_roads_spring)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_cuts_spring)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_landcover_earlysum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_roads_earlysum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_cuts_earlysum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_landcover_latesum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_roads_latesum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_cuts_latesum)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_landcover_autumn)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_roads_autumn)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_cuts_autumn)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_landcover_winter)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_roads_winter)[3] <- "Reproductiveclass"
+colnames(habitat_fixed_cuts_winter)[3] <- "Reproductiveclass"
+
+habitat_fixed_betas_landcover_allseasons <- rbind(habitat_fixed_landcover_spring,habitat_fixed_landcover_earlysum,habitat_fixed_landcover_latesum, habitat_fixed_landcover_autumn,habitat_fixed_landcover_winter)
+habitat_fixed_betas_roads_allseasons <- rbind(habitat_fixed_roads_spring,habitat_fixed_roads_earlysum,habitat_fixed_roads_latesum, habitat_fixed_roads_autumn,habitat_fixed_roads_winter)
+habitat_fixed_betas_cuts_allseasons <- rbind(habitat_fixed_cuts_spring,habitat_fixed_cuts_earlysum,habitat_fixed_cuts_latesum, habitat_fixed_cuts_autumn,habitat_fixed_cuts_winter)
+
+habitat_fixed_betas_landcover_allseasons$season <- factor(habitat_fixed_betas_landcover_allseasons$season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
+habitat_fixed_betas_roads_allseasons$season <- factor(habitat_fixed_betas_roads_allseasons$season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
+habitat_fixed_betas_cuts_allseasons$season <- factor(habitat_fixed_betas_cuts_allseasons$season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
+
+
+habitat_landcover_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_landcover_allseasons, width=2) + 
+  geom_boxplot(aes(fill = season),width=0.8, lwd = 1,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.85,0.95), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-1, 1.75)+
+  scale_fill_viridis(discrete=TRUE)
+habitat_landcover_annual
+
+habitat_roads_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_roads_allseasons, width=2) + 
+  geom_boxplot(aes(fill = season),width=0.8, lwd = 1,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.85,0.95), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-1, 1.75)+
+  scale_fill_viridis(discrete=TRUE)
+habitat_roads_annual
+
+habitat_cuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_cuts_allseasons, width=2) + 
+  geom_boxplot(aes(fill = season),width=0.8, lwd = 1,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.85,0.95), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"))+
+  scale_fill_viridis(discrete=TRUE)
+habitat_cuts_annual
+
+-----------------------------------
+### STEP LENGTH RESULTS ###
+-----------------------------------
+
+## STEP LENGTH - MALES
+
+##males
+slength_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL",7]))
+summary(slength_spring)
+slength_lnslroaddist_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:ln_start_roaddist",7]))
+summary(slength_lnslroaddist_spring)
+slength_lnslsinhour_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:sinhour",7]))
+summary(slength_lnslsinhour_spring)
+slength_lnslroaddens_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:start_roaddens",7]))
+summary(slength_lnslroaddens_spring)
+slength_lnslnewcut_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:start_cutageclass_new1",7]))
+summary(slength_lnslroaddens_spring)
+slength_lnslregencut_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:start_cutageclass_regen1",7]))
+summary(slength_lnslroaddens_spring)
+
+SL_males_road_high<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+SL_males_road_low<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+
+##create responses for each bear
+wolves_used_available_final_spring <- wolves_used_available_final[wolves_used_available_final$season=="spring",]
+wolves_used_final_spring <- wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,]
+wolf_spring_sl <- wolves_used_final_spring$sl/1000
+wolf_spring_gamma<-fitdistr(wolf_spring_sl,"gamma", lower=0.001)
+
+d_road_spring<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,0.5),length.out = 100)
+
+for(i in 1:length(d_road_spring)){
+  y_slength_motor_high<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
+                                              slength_spring +
+                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_spring*2.7969) + 
+                                                (slength_lnslroaddist_spring)*d_road_spring[i])
+  y_slength_motor_low<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
+                                              slength_spring +
+                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_spring*1.076819) + 
+                                                (slength_lnslroaddist_spring)*d_road_spring[i])
+
+  SL_males_road_high<-as.data.frame(cbind(SL_males_road_high,y_slength_motor_high))
+  SL_males_road_low<-as.data.frame(cbind(SL_males_road_low,y_slength_motor_low))
+}
+
+SL_males_road_high[,2]<-as.numeric(as.character(SL_males_road_high[,2]))
+SL_males_road_low[,2]<-as.numeric(as.character(SL_males_road_low[,2]))
+
+### BOOTSTRAPPED VALUES FOR ERROR RIBBONS
+
+##bootstrap for bears at each d_trail value
+  
+##high motorised
+average_high<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_high[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_high[SL_males_road_high[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_high[i,]<-mean
+  }
+}
+
+
+##low motorised
+average_low<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_low[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_low[SL_males_road_low[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_low[i,]<-mean
+  }
+}
+
+##plot median and percentiles - high
+SL_males_road_high<-melt(average_high[c(1:200),])
+d_road_spring<-rep(d_road_spring,each=200)
+
+SL_males_road_high<-as.data.frame(cbind(SL_males_road_high,d_road_spring))
+
+SL_males_road_high_final<-SL_males_road_high %>% group_by(d_road_spring) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+
+##plot median and percentiles - low
+SL_males_road_low<-melt(average_low[c(1:200),])
+
+SL_males_road_low<-cbind(SL_males_road_low,d_road_spring)
+
+SL_males_road_low_final<-SL_males_road_low %>% group_by(d_road_spring) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+
+##ggplot
+motorised<-c(rep("high",100),rep("low",100))
+SL_road_males_final<-rbind(SL_males_road_high_final,SL_males_road_low_final)
+SL_road_males_final<-cbind(SL_road_males_final,motorised)
+wolves_used_available_final$ln_start_roaddist_s<-scale(wolves_used_available_final$ln_start_roaddist)
+SL_road_males_final$d_road_spring_exp <-exp(SL_road_males_final$d_road_spring)
+
+males_motorised<-ggplot(SL_road_males_final, aes(x=d_road_spring, y=`50%`,fill=motorised,colour=motorised)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()+
+  scale_y_continuous(limits=c(200,600))+
+  theme_bw(base_size = 35)+
+  theme(axis.line = element_line(colour = "black"),
+        legend.position="none",
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+  labs(x= "",y="")+
+  coord_cartesian(ylim=c(2,600))
+males_motorised
+-----------------------------------
+### RSS CALCULATIONS ###
+-----------------------------------
+
+## RSS - MALES
+dtrail_beta<-as.numeric(as.character(results_males[results_males$Covariates=="lntrail",5]))
+summary(slength)
+
+motor_beta<-as.numeric(as.character(results_males[results_males$Covariates=="logit_pmotor:lntrail",5]))
+nmotor_beta<-as.numeric(as.character(results_males[results_males$Covariates=="lntrail:logit_pnmotor",5]))
+
+mean_SL<-mean(gbears_used_available_final[gbears_used_available_final$used==1,11])
+
+d_trail<-seq(2*mean_SL+1,1000,length.out = 100)
+motor_high<-quantile(gbears_used_available_final$logit_pmotor,0.75)
+motor_low<-quantile(gbears_used_available_final$logit_pmotor,0.25)
+
+nmotor_high<-quantile(gbears_used_available_final$logit_pnmotor,0.75)
+nmotor_low<-quantile(gbears_used_available_final$logit_pnmotor,0.25)
+
+RSS_males_motor_high<-unique(paste(results_males$bear,results_males$Year))
+RSS_males_motor_low<-unique(paste(results_males$bear,results_males$Year))
+RSS_males_nmotor_high<-unique(paste(results_males$bear,results_males$Year))
+RSS_males_nmotor_low<-unique(paste(results_males$bear,results_males$Year))
+
+##create responses for each bear
+d_trail[100]/(d_trail[100]-(2*mean_SL))
+
+for(i in 1:length(d_trail)){
+  RSS_motor_high<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(motor_beta*motor_high))
+   RSS_motor_low<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(motor_beta*motor_low))
+   RSS_nmotor_high<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(nmotor_beta*nmotor_high))
+RSS_nmotor_low<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(nmotor_beta*nmotor_low))
+
+ RSS_males_motor_high<-as.data.frame(cbind(RSS_males_motor_high,RSS_motor_high))
+ RSS_males_motor_low<-as.data.frame(cbind(RSS_males_motor_low,RSS_motor_low))
+ RSS_males_nmotor_high<-as.data.frame(cbind(RSS_males_nmotor_high,RSS_nmotor_high))
+ RSS_males_nmotor_low<-as.data.frame(cbind(RSS_males_nmotor_low,RSS_nmotor_low))
+}
+
+  RSS_males_motor_high[,2]<-as.numeric(as.character(RSS_males_motor_high[,2]))
+  RSS_males_motor_low[,2]<-as.numeric(as.character(RSS_males_motor_low[,2]))
+  RSS_males_nmotor_high[,2]<-as.numeric(as.character(RSS_males_nmotor_high[,2]))
+  RSS_males_nmotor_high[,2]<-as.numeric(as.character(RSS_males_nmotor_high[,2]))
+
+  
+average_high<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  bear_bstrap<-as.vector(sample(unique(RSS_males_motor_high$RSS_males_motor_high),18,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(bear_bstrap)){
+    x<-RSS_males_motor_high[RSS_males_motor_high$RSS_males_motor_high==bear_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_high[i,]<-mean
+  }
+}
+
+RSS_males_motor_high2<-melt(average_high[c(1:200),])
+
+
+d_trail<-rep(d_trail,each=200)
+
+RSS_males_motor_high<-cbind(RSS_males_motor_high2,d_trail)
+
+RSS_males_motor_high_final<-RSS_males_motor_high %>% group_by(d_trail) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+
+##low motorised
+average_low<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  bear_bstrap<-as.vector(sample(unique(RSS_males_motor_low$RSS_males_motor_low),18,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(bear_bstrap)){
+    x<-RSS_males_motor_low[RSS_males_motor_low$RSS_males_motor_low==bear_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_low[i,]<-mean
+  }
+}
+
+RSS_males_motor_low2<-melt(average_low[c(1:200),])
+
+RSS_males_motor_low<-cbind(RSS_males_motor_low2,d_trail)
+
+RSS_males_motor_low_final<-RSS_males_motor_low %>% group_by(d_trail) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+
+motorised<-c(rep("high",100),rep("low",100))
+
+RSS_males_motor_final<-rbind(RSS_males_motor_high_final,RSS_males_motor_low_final)
+RSS_males_motor_final<-cbind(RSS_males_motor_final,motorised)
+
+gbears_used_available_final$lntrail_start_s<-scale(gbears_used_available_final$lntrail_start)
+# RSS_males_motor_final$d_trail_m<-exp(RSS_males_motor_final$d_trail_s * attr(gbears_used_available_final$lntrail_start_s, 'scaled:scale') + attr(gbears_used_available_final$lntrail_start_s, 'scaled:center'))
+
+males_motorised<-ggplot(RSS_males_motor_final, aes(x=d_trail, y=`50%`,fill=motorised,colour=motorised)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()+
+  coord_cartesian(ylim = c(0.5, 5)) +
+  theme_bw(base_size = 35)+
+  theme(axis.line = element_line(colour = "black"),
+        legend.position="none",
+        panel.border = element_blank(), panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank())+
+  labs(x= "",y="")
