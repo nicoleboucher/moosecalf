@@ -1,7 +1,7 @@
 #Wolf response to silviculture in PGS
 
 # Code for iSSA
-save.image(file='iSSA_wolf_bstrapped2.RData')
+save.image(file='iSSA_wolf_vars.RData')
 
 #load
 load(file='iSSA_wolf_bootstrappedbetas.RData')
@@ -180,13 +180,15 @@ usedearlysum <- wolves_used_available_final[wolves_used_available_final$case=="T
 usedlatesum <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="latesum",]
 usedautumn <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="autumn",]
 usedwinter <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="winter",]
+usedall <- wolves_used_available_final[wolves_used_available_final$case=="TRUE",]
 
-p_springsl <- ggplot(usedspring,aes(sl, fill = factor(name))) + geom_density(alpha = 0.4) + labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Spring", size = 8)
-p_earlysumsl <- ggplot(usedearlysum,aes(sl, fill = factor(name))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Early summer", size = 8)
-p_latesumsl <- ggplot(usedlatesum,aes(sl, fill = factor(name))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Late summer", size = 8)
-p_autumnsl <- ggplot(usedautumn,aes(sl, fill = factor(name))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Autumn", size = 8)
-p_wintersl <- ggplot(usedwinter,aes(sl, fill = factor(name))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Winter", size = 8)
-
+p_springsl <- ggplot(usedspring,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4) + labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Spring", size = 8)
+p_earlysumsl <- ggplot(usedearlysum,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Early summer", size = 8)
+p_latesumsl <- ggplot(usedlatesum,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Late summer", size = 8)
+p_autumnsl <- ggplot(usedautumn,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Autumn", size = 8)
+p_wintersl <- ggplot(usedwinter,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Winter", size = 8)
+p_allsl <- ggplot(usedall,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")
+p_allsl
 plot_grid(p_springsl,p_earlysumsl,p_latesumsl,p_autumnsl,p_wintersl,ncol=3)
 
 ####################### Spatial preparation and covariate extraction #########################
@@ -387,7 +389,7 @@ rm(slope,slope.vx)
 ############### Aspect ########################
 
 #load aspect data
-aspect <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Topography\\PGS_ASPECT_50KM_FINAL.tif")
+aspect <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Topography\\PGS_ASPECT_50KM_DEGREES_FINAL.tif")
 aspect <- projectRaster(aspect, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
 aspect.vx <- velox(aspect)
 
@@ -558,7 +560,7 @@ rm(water,water.vx)
 ########### save data! ###############
 
 rm(wolves_ua_sp_start, wolves_ua_sp_end,crs,day,i)
-write.csv(wolves_used_available_final, "wolves_used_available_final.csv")
+write.csv(wolves_used_available_final, "wolves_used_available_final1.csv")
 
 save.image(file='iSSA_wolf_extractedvariables_final.RData')
 
@@ -568,30 +570,15 @@ rm(meanNDVI2018.vx,meanNDVI2019.vx,NDVI.rasters.vx,NDVI.v,roaddens.vx,roaddist.v
 ############# Reload data (if failed) #####################
 
 #load data
-wolves_used_available_final<-read.csv("wolves_used_available_final.csv")
+wolves_used_available_final<-read.csv("wolves_used_available_final1.csv")
+wolves_used_available_final <- wolves_used_available_final[,-1]
 
 #make a factor
-wolves_used_available_final$start_landcover_Coniferous <- as.factor(wolves_used_available_final$start_landcover_Coniferous)
-wolves_used_available_final$start_landcover_Deciduous <- as.factor(wolves_used_available_final$start_landcover_Deciduous)
-wolves_used_available_final$start_landcover_Pine <- as.factor(wolves_used_available_final$start_landcover_Pine)
-wolves_used_available_final$start_landcover_MixedForest <- as.factor(wolves_used_available_final$start_landcover_MixedForest)
-wolves_used_available_final$start_landcover_Nonforest <- as.factor(wolves_used_available_final$start_landcover_Nonforest)
-
-wolves_used_available_final$end_landcover_Coniferous <- as.factor(wolves_used_available_final$end_landcover_Coniferous)
-wolves_used_available_final$end_landcover_Deciduous <- as.factor(wolves_used_available_final$end_landcover_Deciduous)
-wolves_used_available_final$end_landcover_Pine <- as.factor(wolves_used_available_final$end_landcover_Pine)
-wolves_used_available_final$end_landcover_MixedForest <- as.factor(wolves_used_available_final$end_landcover_MixedForest)
-wolves_used_available_final$end_landcover_Nonforest <- as.factor(wolves_used_available_final$end_landcover_Nonforest)
-
-wolves_used_available_final$start_cutageclass_new <- as.factor(wolves_used_available_final$start_cutageclass_new)
-wolves_used_available_final$start_cutageclass_regen <- as.factor(wolves_used_available_final$start_cutageclass_regen)
-wolves_used_available_final$start_cutageclass_old <- as.factor(wolves_used_available_final$start_cutageclass_old)
-wolves_used_available_final$start_cutageclass_UnCut <- as.factor(wolves_used_available_final$start_cutageclass_UnCut)
-wolves_used_available_final$end_cutageclass_new <- as.factor(wolves_used_available_final$end_cutageclass_new)
-wolves_used_available_final$end_cutageclass_regen <- as.factor(wolves_used_available_final$end_cutageclass_regen)
-wolves_used_available_final$end_cutageclass_old <- as.factor(wolves_used_available_final$end_cutageclass_old)
-wolves_used_available_final$end_cutageclass_UnCut <- as.factor(wolves_used_available_final$end_cutageclass_UnCut)
-wolves_used_available_final <- wolves_used_available_final[,-1]
+cols <- c("start_landcover_Coniferous", "start_landcover_Deciduous", "start_landcover_Pine", "start_landcover_MixedForest", "start_landcover_Nonforest",
+          "end_landcover_Coniferous", "end_landcover_Deciduous", "end_landcover_Pine", "end_landcover_MixedForest", "end_landcover_Nonforest","start_cutageclass_new",
+          "start_cutageclass_regen", "start_cutageclass_old","start_cutageclass_UnCut","end_cutageclass_new","end_cutageclass_regen","end_cutageclass_old","end_cutageclass_UnCut")
+wolves_used_available_final[cols] <- lapply(wolves_used_available_final[cols], factor)
+rm(cols)
 
 #################### Modelling #############################
 
@@ -630,12 +617,10 @@ wolves_used_available_final$ln_end_edgein <- log(wolves_used_available_final$end
 wolves_used_available_final$hour <- as.numeric(str_sub(wolves_used_available_final$t2,-8,-7))
 wolves_used_available_final$sinhour <- sin((4*pi*(wolves_used_available_final$hour-3))/24)
 
-
 ############### Check for collinearity ####################
 
 correlation <- cor(wolves_used_available_final[c(19:22,30:54,60:63,65)])
 write.csv(correlation,'wolves_vars_correlation.csv')
-
 
 -----------------------------------
 ### RUN MODELS ###
@@ -663,19 +648,19 @@ for (i in 1:length(year)){
     data3<-data2 %>% filter(name ==!!name[k])
     assign(paste(year[i],season[j],name[k],sep=" "),data3)
     if(nrow(data)>0){
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+strata(stepid),data=data3)
-      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
-      Year<-append(Year,rep(year[i],length(output$coefficients)))
-      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
-      Model<-append(Model,rep("base",length(output$coefficients)))
-      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
-      Covariates<-append(Covariates,names(output$coefficients))
-      beta<-append(beta,coef(output))
-      SE<-append(SE,coef(summary(output))[,"se(coef)"])
-      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
-      assign("base",output)
+      #output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("base",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("base",output)
       
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+strata(stepid),data=data3)
+      output<-clogit(used~end_elevation+end_slope +lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+strata(stepid),data=data3)
       wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       Year<-append(Year,rep(year[i],length(output$coefficients)))
       Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
@@ -687,7 +672,19 @@ for (i in 1:length(year)){
       p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
       assign("facilitatemovement",output)
       
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_sizeha+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+strata(stepid),data=data3)
+      output<-clogit(used~end_elevation+end_slope +lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+ln_start_roaddist:lnSL+end_cutageclass_new+end_sizeha+start_cutageclass_new:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("facilitatemovement",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("facilitatemovement2",output)
+      
+      output<-clogit(used~end_landcover_Deciduous:end_NDVI+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_sizeha+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+end_cutageclass_new+end_cutageclass_regen+end_meanNDVIlag+strata(stepid),data=data3)
       wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       Year<-append(Year,rep(year[i],length(output$coefficients)))
       Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
@@ -699,8 +696,20 @@ for (i in 1:length(year)){
       p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
       assign("preydiversity",output)
            
-
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+strata(stepid),data=data3)
+      
+      output<-clogit(used~end_landcover_Deciduous:end_NDVI+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_sizeha+end_NDVI+end_sizeha:end_NDVI+end_cutageclass_new+end_cutageclass_regen+end_meanNDVIlag+strata(stepid),data=data3)
+      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      Year<-append(Year,rep(year[i],length(output$coefficients)))
+      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      Model<-append(Model,rep("preydiversity",length(output$coefficients)))
+      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      Covariates<-append(Covariates,names(output$coefficients))
+      beta<-append(beta,coef(output))
+      SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      assign("productivity",output)
+      
+      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+strata(stepid),data=data3)
       wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       Year<-append(Year,rep(year[i],length(output$coefficients)))
       Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
@@ -712,46 +721,58 @@ for (i in 1:length(year)){
       p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
       assign("anthro",output)
                  
-          
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+ln_start_roaddist:lnSL+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
+      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+sinhour:ln_end_roaddist+ln_end_roaddist+ln_start_roaddist:lnSL+strata(stepid),data=data3)
       wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       Year<-append(Year,rep(year[i],length(output$coefficients)))
       Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
-      Model<-append(Model,rep("anthro+facilitate",length(output$coefficients)))
+      Model<-append(Model,rep("anthro",length(output$coefficients)))
       AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
       Covariates<-append(Covariates,names(output$coefficients))
       beta<-append(beta,coef(output))
       SE<-append(SE,coef(summary(output))[,"se(coef)"])
       p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
-      assign("anthro+facilitate",output)
+      assign("anthro1",output)
+                     
       
-                
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+strata(stepid),data=data3)
-      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
-      Year<-append(Year,rep(year[i],length(output$coefficients)))
-      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
-      Model<-append(Model,rep("anthro+preydiversity",length(output$coefficients)))
-      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
-      Covariates<-append(Covariates,names(output$coefficients))
-      beta<-append(beta,coef(output))
-      SE<-append(SE,coef(summary(output))[,"se(coef)"])
-      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
-      assign("anthro+preydiversity",output)
-           
-      output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout+strata(stepid),data=data3)
-      wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
-      Year<-append(Year,rep(year[i],length(output$coefficients)))
-      Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
-      Model<-append(Model,rep("facilitatemovement+prey",length(output$coefficients)))
-      AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
-      Covariates<-append(Covariates,names(output$coefficients))
-      beta<-append(beta,coef(output))
-      SE<-append(SE,coef(summary(output))[,"se(coef)"])
-      p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
-      assign("facilitatemovement+prey",output)
+      #output<-clogit(used~end_elevation+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+ln_start_roaddist:lnSL+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("anthro+facilitate",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("anthro+facilitate",output)
+      #
+      #          
+      #output<-clogit(used~end_landcover_Deciduous:end_NDVI+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("anthro+preydiversity",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("anthro+preydiversity",output)
+      #     
+      #output<-clogit(used~end_roaddens+end_landcover_Deciduous:end_NDVI+end_elevation+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+strata(stepid),data=data3)
+      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
+      #Year<-append(Year,rep(year[i],length(output$coefficients)))
+      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
+      #Model<-append(Model,rep("facilitatemovement+prey",length(output$coefficients)))
+      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
+      #Covariates<-append(Covariates,names(output$coefficients))
+      #beta<-append(beta,coef(output))
+      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
+      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
+      #assign("facilitatemovement+prey",output)
       
       
-      #output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+end_sizeha+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+strata(stepid),data=data3)
+      #output<-clogit(used~end_landcover_Deciduous:end_NDVI+end_elevation+lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+ln_start_roaddist:lnSL+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+end_sizeha+end_NDVI+end_sizeha:end_NDVI+ln_end_edgein+ln_end_edgeout+strata(stepid),data=data3)
       #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       #Year<-append(Year,rep(year[i],length(output$coefficients)))
       #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
@@ -768,6 +789,7 @@ for (i in 1:length(year)){
 
   }
 }
+
 
 #create base iSSA dataframe
 base_results_issa<-as.data.frame(cbind(wolf,Year,Season,Model,AIC,Covariates,beta,SE,p))
@@ -853,17 +875,19 @@ levels(AIC_results_ordered$Model)
 ################# Plot AIC results #####################
 
 #split data set into list by seasons
-#AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("base", "anthro","facilitatemovement","preydiversity", "complete"))
-AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("base", "anthro","facilitatemovement","preydiversity","anthro+facilitate","anthro+preydiversity","facilitatemovement+prey"))
-#levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Complete"
+AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("base", "anthro","facilitatemovement","preydiversity","anthro+facilitate","anthro+preydiversity","facilitatemovement+prey","complete"))
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Complete"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="base"] <- "Base"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro"] <- "Anthropogenic"
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro1"] <- "Anthropogenic1"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement"] <- "Movement"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro+facilitate"] <- "A+M"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro+preydiversity"] <- "A+P"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement+prey"] <- "M+P"
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement1"] <- "Movement1"
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="preydiversity"] <- "Prey"
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="productivity"] <- "Productivity"
+#levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro+facilitate"] <- "A+M"
+#levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro+preydiversity"] <- "A+P"
+#levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement+prey"] <- "M+P"
 levels(AIC_results_ordered$Model)
-#AIC_results_ordered <- split(AIC_results_ordered, f = AIC_results$Season)
 
 AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
 levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="spring"] <- "Spring"
@@ -871,7 +895,6 @@ levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="earlysum
 levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="latesum"] <- "Late Summer"
 levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="autumn"] <- "Autumn"
 levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="winter"] <- "Winter"
-
 
 AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, width=2) + 
   geom_boxplot(aes(fill = Season),width=0.5,color="black", lwd = 1,
@@ -908,11 +931,11 @@ wolf_sex<-read.csv("wolf_sex.csv")
 results_sex_age<-merge(base_results_issa,wolf_sex,by.x=c("wolf","Year"),by.y=c("name","Year"),all.x=T)
 
 #males
-results_males_spring <-results_sex_age[results_sex_age$Season=="spring"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
-results_males_earlysum <-results_sex_age[results_sex_age$Season=="earlysum"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
-results_males_latesum <-results_sex_age[results_sex_age$Season=="latesum"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
-results_males_autumn <-results_sex_age[results_sex_age$Season=="autumn"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
-results_males_winter <-results_sex_age[results_sex_age$Season=="winter"&results_sex_age$Model=="complete"&results_sex_age$Sex=="M",]
+results_males_spring <-results_sex_age[results_sex_age$Season=="spring"&results_sex_age$Model=="anthro+facilitate"&results_sex_age$Sex=="M",]
+results_males_earlysum <-results_sex_age[results_sex_age$Season=="earlysum"&results_sex_age$Model=="anthro+facilitate"&results_sex_age$Sex=="M",]
+results_males_latesum <-results_sex_age[results_sex_age$Season=="latesum"&results_sex_age$Model=="anthro+facilitate"&results_sex_age$Sex=="M",]
+results_males_autumn <-results_sex_age[results_sex_age$Season=="autumn"&results_sex_age$Model=="anthro+facilitate"&results_sex_age$Sex=="M",]
+results_males_winter <-results_sex_age[results_sex_age$Season=="winter"&results_sex_age$Model=="anthro+facilitate"&results_sex_age$Sex=="M",]
 
 #bootstrap spring
 b.boot<-numeric(2000)
@@ -1072,6 +1095,9 @@ Reproductive_class_spring<-as.vector(c(rep("male",12000),rep("female",0))) ##cre
 movement_betas_spring_long<-cbind(movement_betas_spring_long,Reproductive_class_spring) ##bind with rest of table
 movement_betas_spring_long$Beta<-as.numeric(as.character(movement_betas_spring_long$Beta)) ##convert beta to numeric
 movement_betas_spring_long$Reproductive_class_spring<-factor(movement_betas_spring_long$Reproductive_class_spring,levels = c("male"))
+
+#lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Nonforest+ln_end_water+end_roaddens+sinhour:end_roaddens+start_roaddens:lnSL+end_sizeha+end_cutageclass_new+end_cutageclass_regen+end_sizeha:end_cutageclass_new+end_sizeha:end_cutageclass_regen+ln_start_roaddist:lnSL+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout
+#sinhour:end_roaddens+start_roaddens:lnSL+ln_start_roaddist:lnSL+start_sizeha:start_cutageclass_new:lnSL+start_sizeha:start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+end_NDVI+end_sizeha:end_NDVI+end_edgein+end_edgeout
 
 #replace covariate names
 movement_betas_spring_long$Covariate<-as.character(movement_betas_spring_long$Covariate)
