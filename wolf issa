@@ -1625,7 +1625,7 @@ habitat_cuts_annual
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat cuts betas.tiff", plot=habitat_cuts_annual, units="in", width=18, height=9, dpi=600, compression = 'lzw')
 
 -----------------------------------
-### STEP LENGTH RESULTS ###
+### STEP LENGTH RESULTS - ROAD DIST BY CUTAGE ###
 -----------------------------------
 
 ## STEP LENGTH BY SEASON
@@ -1692,12 +1692,12 @@ for(i in 1:length(d_road_spring)){
   y_slength_road_regen_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
                                               slength_spring +
                                               (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_spring*2.7969) + (slength_lnslnewcut_spring*0)+(slength_lnslregencut_spring*1)+
+                                                (slength_lnslroaddens_spring*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_spring*0)+(slength_lnslregencut_spring*1)+
                                                 (slength_lnslroaddist_spring)*d_road_spring[i])
   y_slength_road_new_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
                                               slength_spring +
                                               (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_spring*1.076819)+ (slength_lnslnewcut_spring*1)+ (slength_lnslregencut_spring*0) + 
+                                                (slength_lnslroaddens_spring*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_spring*1)+(slength_lnslregencut_spring*0)+ 
                                                 (slength_lnslroaddist_spring)*d_road_spring[i])
 
   SL_males_road_regen_spring<-as.data.frame(cbind(SL_males_road_regen_spring,y_slength_road_regen_spring))
@@ -1718,12 +1718,12 @@ for(i in 1:length(d_road_earlysum)){
   y_slength_road_regen_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
                                               slength_earlysum +
                                               (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_earlysum*2.7969) + (slength_lnslnewcut_earlysum*0)+(slength_lnslregencut_earlysum*1)+
+                                                (slength_lnslroaddens_earlysum*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_earlysum*0)+(slength_lnslregencut_earlysum*1)+
                                                 (slength_lnslroaddist_earlysum)*d_road_earlysum[i])
   y_slength_road_new_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
                                               slength_earlysum +
-                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_earlysum*1.076819)+ (slength_lnslnewcut_earlysum*1)+ (slength_lnslregencut_earlysum*0) + 
+                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslroaddens_earlysum*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_earlysum*1)+(slength_lnslregencut_earlysum*0) + 
                                                 (slength_lnslroaddist_earlysum)*d_road_earlysum[i])
 
   SL_males_road_regen_earlysum<-as.data.frame(cbind(SL_males_road_regen_earlysum,y_slength_road_regen_earlysum))
@@ -1744,12 +1744,12 @@ for(i in 1:length(d_road_latesum)){
   y_slength_road_regen_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
                                               slength_latesum +
                                               (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_latesum*2.7969) + (slength_lnslnewcut_latesum*0)+(slength_lnslregencut_latesum*1)+
+                                                (slength_lnslroaddens_latesum*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_latesum*0)+(slength_lnslregencut_latesum*1)+
                                                 (slength_lnslroaddist_latesum)*d_road_latesum[i])
   y_slength_road_new_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
                                               slength_latesum +
-                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_latesum*1.076819)+ (slength_lnslnewcut_latesum*1)+ (slength_lnslregencut_latesum*0) + 
+                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslroaddens_latesum*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_latesum*1)+(slength_lnslregencut_latesum*0) + 
                                                 (slength_lnslroaddist_latesum)*d_road_latesum[i])
 
   SL_males_road_regen_latesum<-as.data.frame(cbind(SL_males_road_regen_latesum,y_slength_road_regen_latesum))
@@ -1770,12 +1770,12 @@ for(i in 1:length(d_road_autumn)){
   y_slength_road_regen_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
                                               slength_autumn +
                                               (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_autumn*2.7969) + (slength_lnslnewcut_autumn*0)+(slength_lnslregencut_autumn*1)+
+                                                (slength_lnslroaddens_autumn*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_autumn*0)+(slength_lnslregencut_autumn*1)+
                                                 (slength_lnslroaddist_autumn)*d_road_autumn[i])
   y_slength_road_new_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
                                               slength_autumn +
                                               (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_autumn*1.076819)+ (slength_lnslnewcut_autumn*1)+ (slength_lnslregencut_autumn*0) + 
+                                                (slength_lnslroaddens_autumn*mean(wolves_used_available_final$start_roaddens))+ (slength_lnslnewcut_autumn*1)+ (slength_lnslregencut_autumn*0) + 
                                                 (slength_lnslroaddist_autumn)*d_road_autumn[i])
 
   SL_males_road_regen_autumn<-as.data.frame(cbind(SL_males_road_regen_autumn,y_slength_road_regen_autumn))
@@ -1796,12 +1796,12 @@ for(i in 1:length(d_road_winter)){
   y_slength_road_regen_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
                                               slength_winter +
                                               (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_winter*2.7969) + (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*1)+
+                                                (slength_lnslroaddens_winter*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*1)+
                                                 (slength_lnslroaddist_winter)*d_road_winter[i])
   y_slength_road_new_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
                                               slength_winter +
                                               (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_winter*1.076819)+ (slength_lnslnewcut_winter*1)+ (slength_lnslregencut_winter*0) + 
+                                                (slength_lnslroaddens_winter*mean(wolves_used_available_final$start_roaddens))+ (slength_lnslnewcut_winter*1)+ (slength_lnslregencut_winter*0) + 
                                                 (slength_lnslroaddist_winter)*d_road_winter[i])
 
   SL_males_road_regen_winter<-as.data.frame(cbind(SL_males_road_regen_winter,y_slength_road_regen_winter))
@@ -1908,6 +1908,7 @@ for(i in 1:length(b.boot)){
     average_new_spring[i,]<-mean
   }
 }
+SL_males_road_new_final_spring$season <- "spring"
 
 #earlysum
 average_new_earlysum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
@@ -1923,6 +1924,7 @@ for(i in 1:length(b.boot)){
     average_new_earlysum[i,]<-mean
   }
 }
+SL_males_road_new_final_earlysum$season <- "earlysum"
 
 #latesum
 average_new_latesum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
@@ -1938,6 +1940,7 @@ for(i in 1:length(b.boot)){
     average_new_latesum[i,]<-mean
   }
 }
+SL_males_road_new_final_latesum$season <- "latesum"
 
 #autumn
 average_new_autumn<-data.frame(matrix(NA, nrow = 200, ncol = 100))
@@ -1953,6 +1956,7 @@ for(i in 1:length(b.boot)){
     average_new_autumn[i,]<-mean
   }
 }
+SL_males_road_new_final_autumn$season <- "autumn"
 
 #winter
 average_new_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
@@ -1968,7 +1972,7 @@ for(i in 1:length(b.boot)){
     average_new_winter[i,]<-mean
   }
 }
-
+SL_males_road_new_final_winter$season <- "winter"
 
 ##plot median and percentiles - regen
 
@@ -1984,6 +1988,8 @@ SL_males_road_regen_final_spring<-SL_males_road_regen_spring %>% group_by(d_road
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_regen_final_spring$season <- "spring"
+names(SL_males_road_regen_final_spring)[1] <- "d_road"
 
 #earlysum
 SL_males_road_regen_earlysum<-melt(average_regen_earlysum[c(1:200),])
@@ -1997,6 +2003,8 @@ SL_males_road_regen_final_earlysum<-SL_males_road_regen_earlysum %>% group_by(d_
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_regen_final_earlysum$season <- "earlysum"
+names(SL_males_road_regen_final_earlysum)[1] <- "d_road"
 
 #latesum
 SL_males_road_regen_latesum<-melt(average_regen_latesum[c(1:200),])
@@ -2010,7 +2018,8 @@ SL_males_road_regen_final_latesum<-SL_males_road_regen_latesum %>% group_by(d_ro
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-
+SL_males_road_regen_final_latesum$season <- "latesum"
+names(SL_males_road_regen_final_latesum)[1] <- "d_road"
 
 #autumn
 SL_males_road_regen_autumn<-melt(average_regen_autumn[c(1:200),])
@@ -2024,6 +2033,8 @@ SL_males_road_regen_final_autumn<-SL_males_road_regen_autumn %>% group_by(d_road
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_regen_final_autumn$season <- "autumn"
+names(SL_males_road_regen_final_autumn)[1] <- "d_road"
 
 #winter
 SL_males_road_regen_winter<-melt(average_regen_winter[c(1:200),])
@@ -2037,6 +2048,8 @@ SL_males_road_regen_final_winter<-SL_males_road_regen_winter %>% group_by(d_road
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_regen_final_winter$season <- "winter"
+names(SL_males_road_regen_final_winter)[1] <- "d_road"
 
 ##plot median and percentiles - new
 
@@ -2052,6 +2065,8 @@ SL_males_road_new_final_spring<-SL_males_road_new_spring %>% group_by(d_road_spr
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_new_final_spring$season <- "spring"
+names(SL_males_road_new_final_spring)[1] <- "d_road"
 
 #earlysum
 SL_males_road_new_earlysum<-melt(average_new_earlysum[c(1:200),])
@@ -2065,6 +2080,8 @@ SL_males_road_new_final_earlysum<-SL_males_road_new_earlysum %>% group_by(d_road
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_new_final_earlysum$season <- "earlysum"
+names(SL_males_road_new_final_earlysum)[1] <- "d_road"
 
 #latesum
 SL_males_road_new_latesum<-melt(average_new_latesum[c(1:200),])
@@ -2078,7 +2095,8 @@ SL_males_road_new_final_latesum<-SL_males_road_new_latesum %>% group_by(d_road_l
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-
+SL_males_road_new_final_latesum$season <- "latesum"
+names(SL_males_road_new_final_latesum)[1] <- "d_road"
 
 #autumn
 SL_males_road_new_autumn<-melt(average_new_autumn[c(1:200),])
@@ -2092,6 +2110,8 @@ SL_males_road_new_final_autumn<-SL_males_road_new_autumn %>% group_by(d_road_aut
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_new_final_autumn$season <- "autumn"
+names(SL_males_road_new_final_autumn)[1] <- "d_road"
 
 #winter
 SL_males_road_new_winter<-melt(average_new_winter[c(1:200),])
@@ -2105,19 +2125,25 @@ SL_males_road_new_final_winter<-SL_males_road_new_winter %>% group_by(d_road_win
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+SL_males_road_new_final_winter$season <- "winter"
+names(SL_males_road_new_final_winter)[1] <- "d_road"
 
 ##ggplot
-cutage<-c(rep("regen",100),rep("new",100))
-SL_road_males_final<-rbind(SL_males_road_regen_final,SL_males_road_new_final)
-SL_road_males_final<-cbind(SL_road_males_final,cutage)
-wolves_used_available_final$ln_start_roaddist_s<-scale(wolves_used_available_final$ln_start_roaddist)
-SL_road_males_final$d_road_latesum_exp <-exp(SL_road_males_final$d_road_latesum)
+SL_road_males_regen_final<-rbind(SL_males_road_regen_final_spring,SL_males_road_regen_final_earlysum,SL_males_road_regen_final_latesum,SL_males_road_regen_final_autumn,SL_males_road_regen_final_winter)
+SL_road_males_new_final<-rbind(SL_males_road_new_final_spring,SL_males_road_new_final_earlysum,SL_males_road_new_final_latesum,SL_males_road_new_final_autumn,SL_males_road_new_final_winter)
+SL_road_males_regen_final$season <- factor(SL_road_males_regen_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
+SL_road_males_new_final$season <- factor(SL_road_males_new_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
 
-males_roaddist_cutage<-ggplot(SL_road_males_final, aes(x=d_road_latesum, y=`50%`,fill=cutage,colour=cutage)) +
+wolves_used_available_final$ln_start_roaddist_s<-scale(wolves_used_available_final$ln_start_roaddist)
+SL_road_males_regen_final$d_road_exp <-exp(SL_road_males_regen_final$d_road)
+
+males_roaddist_regen <-ggplot(SL_road_males_regen_final, aes(x=d_road, y=`50%`,fill=season,colour=season)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()
-males_roaddist_cutage
-
+males_roaddist_new <-ggplot(SL_road_males_new_final, aes(x=d_road, y=`50%`,fill=season,colour=season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()
+males_roaddist_new
 
   scale_y_continuous(limits=c(200,600))+
   theme_bw(base_size = 35)+
@@ -2127,16 +2153,500 @@ males_roaddist_cutage
           panel.grid.minor = element_blank())+
   labs(x= "",y="")+
   coord_cartesian(ylim=c(2,600))
-males_motorised
+males_roaddist_new
 
 
 
+-----------------------------------
+### STEP LENGTH RESULTS - Road density by cut age ###
+-----------------------------------
+
+## STEP LENGTH BY SEASON
+#spring
+SL_males_roaddens_regen_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+SL_males_road_new_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+
+#earlysum
+SL_males_roaddens_regen_earlysum<-unique(paste(results_males_earlysum$wolf,results_males_earlysum$Year))
+SL_males_roaddens_new_earlysum<-unique(paste(results_males_earlysum$wolf,results_males_earlysum$Year))
+
+#latesum
+SL_males_roaddens_regen_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
+SL_males_roaddens_new_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
+
+#autumn
+SL_males_roaddens_regen_autumn<-unique(paste(results_males_autumn$wolf,results_males_autumn$Year))
+SL_males_roaddens_new_autumn<-unique(paste(results_males_autumn$wolf,results_males_autumn$Year))
+
+#winter
+SL_males_roaddens_regen_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
+SL_males_roaddens_new_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
+
+##create responses for each wolf
+
+#spring
+wolves_used_available_final_spring <- wolves_used_available_final[wolves_used_available_final$season=="spring",]
+wolves_used_final_spring <- wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,]
+wolf_spring_sl <- wolves_used_final_spring$sl/1000
+wolf_spring_gamma<-fitdistr(wolf_spring_sl,"gamma", lower=0.001)
+d_roaddens_spring<-seq(min(wolves_used_available_final$ln_start_roaddens),quantile(wolves_used_available_final$ln_start_roaddens,0.5),length.out = 100)
+
+for(i in 1:length(d_roaddens_spring)){
+  y_slength_road_regen_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
+                                              slength_spring +
+                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddist_spring*mean(wolves_used_available_final$start_roaddist)) + (slength_lnslnewcut_spring*0)+(slength_lnslregencut_spring*1)+
+                                                (slength_lnslroaddens_spring)*d_roaddens_spring[i])
+  y_slength_road_new_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
+                                              slength_spring +
+                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddist_spring*mean(wolves_used_available_final$start_roaddist))+(slength_lnslnewcut_spring*1)+(slength_lnslregencut_spring*0)+ 
+                                                (slength_lnslroaddens_spring)*d_roaddens_spring[i])
+
+  SL_males_road_regen_spring<-as.data.frame(cbind(SL_males_road_regen_spring,y_slength_road_regen_spring))
+  SL_males_road_new_spring<-as.data.frame(cbind(SL_males_road_new_spring,y_slength_road_new_spring))
+}
+
+SL_males_road_regen_spring[,2]<-as.numeric(as.character(SL_males_road_regen_spring[,2]))
+SL_males_road_new_spring[,2]<-as.numeric(as.character(SL_males_road_new_spring[,2]))
+
+#earlysum
+wolves_used_available_final_earlysum <- wolves_used_available_final[wolves_used_available_final$season=="earlysum",]
+wolves_used_final_earlysum <- wolves_used_available_final_earlysum[wolves_used_available_final_earlysum$used==1,]
+wolf_earlysum_sl <- wolves_used_final_earlysum$sl/1000
+wolf_earlysum_gamma<-fitdistr(wolf_earlysum_sl,"gamma", lower=0.001)
+d_roaddens_earlysum<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,0.5),length.out = 100)
+
+for(i in 1:length(d_roaddens_earlysum)){
+  y_slength_road_regen_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
+                                              slength_earlysum +
+                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_earlysum*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_earlysum*0)+(slength_lnslregencut_earlysum*1)+
+                                                (slength_lnslroaddist_earlysum)*d_roaddens_earlysum[i])
+  y_slength_road_new_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
+                                              slength_earlysum +
+                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslroaddens_earlysum*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_earlysum*1)+(slength_lnslregencut_earlysum*0) + 
+                                                (slength_lnslroaddist_earlysum)*d_roaddens_earlysum[i])
+
+  SL_males_road_regen_earlysum<-as.data.frame(cbind(SL_males_road_regen_earlysum,y_slength_road_regen_earlysum))
+  SL_males_road_new_earlysum<-as.data.frame(cbind(SL_males_road_new_earlysum,y_slength_road_new_earlysum))
+}
+
+SL_males_road_regen_earlysum[,2]<-as.numeric(as.character(SL_males_road_regen_earlysum[,2]))
+SL_males_road_new_earlysum[,2]<-as.numeric(as.character(SL_males_road_new_earlysum[,2]))
+
+#latesum
+wolves_used_available_final_latesum <- wolves_used_available_final[wolves_used_available_final$season=="latesum",]
+wolves_used_final_latesum <- wolves_used_available_final_latesum[wolves_used_available_final_latesum$used==1,]
+wolf_latesum_sl <- wolves_used_final_latesum$sl/1000
+wolf_latesum_gamma<-fitdistr(wolf_latesum_sl,"gamma", lower=0.001)
+d_roaddens_latesum<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,0.5),length.out = 100)
+
+for(i in 1:length(d_roaddens_latesum)){
+  y_slength_road_regen_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
+                                              slength_latesum +
+                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_latesum*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_latesum*0)+(slength_lnslregencut_latesum*1)+
+                                                (slength_lnslroaddist_latesum)*d_roaddens_latesum[i])
+  y_slength_road_new_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
+                                              slength_latesum +
+                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslroaddens_latesum*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_latesum*1)+(slength_lnslregencut_latesum*0) + 
+                                                (slength_lnslroaddist_latesum)*d_roaddens_latesum[i])
+
+  SL_males_road_regen_latesum<-as.data.frame(cbind(SL_males_road_regen_latesum,y_slength_road_regen_latesum))
+  SL_males_road_new_latesum<-as.data.frame(cbind(SL_males_road_new_latesum,y_slength_road_new_latesum))
+}
+
+SL_males_road_regen_latesum[,2]<-as.numeric(as.character(SL_males_road_regen_latesum[,2]))
+SL_males_road_new_latesum[,2]<-as.numeric(as.character(SL_males_road_new_latesum[,2]))
+
+#autumn
+wolves_used_available_final_autumn <- wolves_used_available_final[wolves_used_available_final$season=="autumn",]
+wolves_used_final_autumn <- wolves_used_available_final_autumn[wolves_used_available_final_autumn$used==1,]
+wolf_autumn_sl <- wolves_used_final_autumn$sl/1000
+wolf_autumn_gamma<-fitdistr(wolf_autumn_sl,"gamma", lower=0.001)
+d_roaddens_autumn<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,0.5),length.out = 100)
+
+for(i in 1:length(d_roaddens_autumn)){
+  y_slength_road_regen_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
+                                              slength_autumn +
+                                              (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_autumn*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_autumn*0)+(slength_lnslregencut_autumn*1)+
+                                                (slength_lnslroaddist_autumn)*d_roaddens_autumn[i])
+  y_slength_road_new_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
+                                              slength_autumn +
+                                              (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_autumn*mean(wolves_used_available_final$start_roaddens))+ (slength_lnslnewcut_autumn*1)+ (slength_lnslregencut_autumn*0) + 
+                                                (slength_lnslroaddist_autumn)*d_roaddens_autumn[i])
+
+  SL_males_road_regen_autumn<-as.data.frame(cbind(SL_males_road_regen_autumn,y_slength_road_regen_autumn))
+  SL_males_road_new_autumn<-as.data.frame(cbind(SL_males_road_new_autumn,y_slength_road_new_autumn))
+}
+
+SL_males_road_regen_autumn[,2]<-as.numeric(as.character(SL_males_road_regen_autumn[,2]))
+SL_males_road_new_autumn[,2]<-as.numeric(as.character(SL_males_road_new_autumn[,2]))
+
+#winter
+wolves_used_available_final_winter <- wolves_used_available_final[wolves_used_available_final$season=="winter",]
+wolves_used_final_winter <- wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,]
+wolf_winter_sl <- wolves_used_final_winter$sl/1000
+wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.001)
+d_roaddens_winter<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,0.5),length.out = 100)
+
+for(i in 1:length(d_roaddens_winter)){
+  y_slength_road_regen_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
+                                              slength_winter +
+                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_winter*mean(wolves_used_available_final$start_roaddens)) + (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*1)+
+                                                (slength_lnslroaddist_winter)*d_roaddens_winter[i])
+  y_slength_road_new_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
+                                              slength_winter +
+                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
+                                                (slength_lnslroaddens_winter*mean(wolves_used_available_final$start_roaddens))+ (slength_lnslnewcut_winter*1)+ (slength_lnslregencut_winter*0) + 
+                                                (slength_lnslroaddist_winter)*d_roaddens_winter[i])
+
+  SL_males_road_regen_winter<-as.data.frame(cbind(SL_males_road_regen_winter,y_slength_road_regen_winter))
+  SL_males_road_new_winter<-as.data.frame(cbind(SL_males_road_new_winter,y_slength_road_new_winter))
+}
+
+SL_males_road_regen_winter[,2]<-as.numeric(as.character(SL_males_road_regen_winter[,2]))
+SL_males_road_new_winter[,2]<-as.numeric(as.character(SL_males_road_new_winter[,2]))
 
 
+### BOOTSTRAPPED VALUES FOR ERROR RIBBONS
+
+##bootstrap for wolfs at each d_trail value - regen
+
+#spring
+average_regen_spring<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_regen_spring[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_regen_spring[SL_males_road_regen_spring[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_regen_spring[i,]<-mean
+  }
+}
+
+#earlysum
+average_regen_earlysum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_regen_earlysum[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_regen_earlysum[SL_males_road_regen_earlysum[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_regen_earlysum[i,]<-mean
+  }
+}
+
+#latesum
+average_regen_latesum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_regen_latesum[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_regen_latesum[SL_males_road_regen_latesum[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_regen_latesum[i,]<-mean
+  }
+}
+
+#autumn
+average_regen_autumn<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_regen_autumn[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_regen_autumn[SL_males_road_regen_autumn[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_regen_autumn[i,]<-mean
+  }
+}
+
+#winter
+average_regen_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_regen_winter[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_regen_winter[SL_males_road_regen_winter[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_regen_winter[i,]<-mean
+  }
+}
 
 
+##new
 
+#spring
+average_new_spring<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_new_spring[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_new_spring[SL_males_road_new_spring[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_new_spring[i,]<-mean
+  }
+}
+SL_males_road_new_final_spring$season <- "spring"
 
+#earlysum
+average_new_earlysum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_new_earlysum[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_new_earlysum[SL_males_road_new_earlysum[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_new_earlysum[i,]<-mean
+  }
+}
+SL_males_road_new_final_earlysum$season <- "earlysum"
+
+#latesum
+average_new_latesum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_new_latesum[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_new_latesum[SL_males_road_new_latesum[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_new_latesum[i,]<-mean
+  }
+}
+SL_males_road_new_final_latesum$season <- "latesum"
+
+#autumn
+average_new_autumn<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_new_autumn[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_new_autumn[SL_males_road_new_autumn[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_new_autumn[i,]<-mean
+  }
+}
+SL_males_road_new_final_autumn$season <- "autumn"
+
+#winter
+average_new_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(SL_males_road_new_winter[,1]),7,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-SL_males_road_new_winter[SL_males_road_new_winter[,1]==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:101])
+    average_new_winter[i,]<-mean
+  }
+}
+SL_males_road_new_final_winter$season <- "winter"
+
+##plot median and percentiles - regen
+
+#spring
+SL_males_road_regen_spring<-melt(average_regen_spring[c(1:200),])
+d_roaddens_spring<-rep(d_roaddens_spring,each=200)
+
+SL_males_road_regen_spring<-as.data.frame(cbind(SL_males_road_regen_spring,d_roaddens_spring))
+
+SL_males_road_regen_final_spring<-SL_males_road_regen_spring %>% group_by(d_roaddens_spring) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_regen_final_spring$season <- "spring"
+names(SL_males_road_regen_final_spring)[1] <- "d_road"
+
+#earlysum
+SL_males_road_regen_earlysum<-melt(average_regen_earlysum[c(1:200),])
+d_roaddens_earlysum<-rep(d_roaddens_earlysum,each=200)
+
+SL_males_road_regen_earlysum<-as.data.frame(cbind(SL_males_road_regen_earlysum,d_roaddens_earlysum))
+
+SL_males_road_regen_final_earlysum<-SL_males_road_regen_earlysum %>% group_by(d_roaddens_earlysum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_regen_final_earlysum$season <- "earlysum"
+names(SL_males_road_regen_final_earlysum)[1] <- "d_road"
+
+#latesum
+SL_males_road_regen_latesum<-melt(average_regen_latesum[c(1:200),])
+d_roaddens_latesum<-rep(d_roaddens_latesum,each=200)
+
+SL_males_road_regen_latesum<-as.data.frame(cbind(SL_males_road_regen_latesum,d_roaddens_latesum))
+
+SL_males_road_regen_final_latesum<-SL_males_road_regen_latesum %>% group_by(d_roaddens_latesum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_regen_final_latesum$season <- "latesum"
+names(SL_males_road_regen_final_latesum)[1] <- "d_road"
+
+#autumn
+SL_males_road_regen_autumn<-melt(average_regen_autumn[c(1:200),])
+d_roaddens_autumn<-rep(d_roaddens_autumn,each=200)
+
+SL_males_road_regen_autumn<-as.data.frame(cbind(SL_males_road_regen_autumn,d_roaddens_autumn))
+
+SL_males_road_regen_final_autumn<-SL_males_road_regen_autumn %>% group_by(d_roaddens_autumn) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_regen_final_autumn$season <- "autumn"
+names(SL_males_road_regen_final_autumn)[1] <- "d_road"
+
+#winter
+SL_males_road_regen_winter<-melt(average_regen_winter[c(1:200),])
+d_roaddens_winter<-rep(d_roaddens_winter,each=200)
+
+SL_males_road_regen_winter<-as.data.frame(cbind(SL_males_road_regen_winter,d_roaddens_winter))
+
+SL_males_road_regen_final_winter<-SL_males_road_regen_winter %>% group_by(d_roaddens_winter) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_regen_final_winter$season <- "winter"
+names(SL_males_road_regen_final_winter)[1] <- "d_road"
+
+##plot median and percentiles - new
+
+#spring
+SL_males_road_new_spring<-melt(average_new_spring[c(1:200),])
+d_roaddens_spring<-rep(d_roaddens_spring,each=200)
+
+SL_males_road_new_spring<-as.data.frame(cbind(SL_males_road_new_spring,d_roaddens_spring))
+
+SL_males_road_new_final_spring<-SL_males_road_new_spring %>% group_by(d_roaddens_spring) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_spring$season <- "spring"
+names(SL_males_road_new_final_spring)[1] <- "d_road"
+
+#earlysum
+SL_males_road_new_earlysum<-melt(average_new_earlysum[c(1:200),])
+d_roaddens_earlysum<-rep(d_roaddens_earlysum,each=200)
+
+SL_males_road_new_earlysum<-as.data.frame(cbind(SL_males_road_new_earlysum,d_roaddens_earlysum))
+
+SL_males_road_new_final_earlysum<-SL_males_road_new_earlysum %>% group_by(d_roaddens_earlysum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_earlysum$season <- "earlysum"
+names(SL_males_road_new_final_earlysum)[1] <- "d_road"
+
+#latesum
+SL_males_road_new_latesum<-melt(average_new_latesum[c(1:200),])
+d_roaddens_latesum<-rep(d_roaddens_latesum,each=200)
+
+SL_males_road_new_latesum<-as.data.frame(cbind(SL_males_road_new_latesum,d_roaddens_latesum))
+
+SL_males_road_new_final_latesum<-SL_males_road_new_latesum %>% group_by(d_roaddens_latesum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_latesum$season <- "latesum"
+names(SL_males_road_new_final_latesum)[1] <- "d_road"
+
+#autumn
+SL_males_road_new_autumn<-melt(average_new_autumn[c(1:200),])
+d_roaddens_autumn<-rep(d_roaddens_autumn,each=200)
+
+SL_males_road_new_autumn<-as.data.frame(cbind(SL_males_road_new_autumn,d_roaddens_autumn))
+
+SL_males_road_new_final_autumn<-SL_males_road_new_autumn %>% group_by(d_roaddens_autumn) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_autumn$season <- "autumn"
+names(SL_males_road_new_final_autumn)[1] <- "d_road"
+
+#winter
+SL_males_road_new_winter<-melt(average_new_winter[c(1:200),])
+d_roaddens_winter<-rep(d_roaddens_winter,each=200)
+
+SL_males_road_new_winter<-as.data.frame(cbind(SL_males_road_new_winter,d_roaddens_winter))
+
+SL_males_road_new_final_winter<-SL_males_road_new_winter %>% group_by(d_roaddens_winter) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_winter$season <- "winter"
+names(SL_males_road_new_final_winter)[1] <- "d_road"
+
+##ggplot
+SL_road_males_regen_final<-rbind(SL_males_road_regen_final_spring,SL_males_road_regen_final_earlysum,SL_males_road_regen_final_latesum,SL_males_road_regen_final_autumn,SL_males_road_regen_final_winter)
+SL_road_males_new_final<-rbind(SL_males_road_new_final_spring,SL_males_road_new_final_earlysum,SL_males_road_new_final_latesum,SL_males_road_new_final_autumn,SL_males_road_new_final_winter)
+SL_road_males_regen_final$season <- factor(SL_road_males_regen_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
+SL_road_males_new_final$season <- factor(SL_road_males_new_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
+
+wolves_used_available_final$ln_start_roaddist_s<-scale(wolves_used_available_final$ln_start_roaddist)
+SL_road_males_regen_final$d_roaddens_exp <-exp(SL_road_males_regen_final$d_road)
+
+males_roaddist_regen <-ggplot(SL_road_males_regen_final, aes(x=d_road, y=`50%`,fill=season,colour=season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()
+males_roaddist_new <-ggplot(SL_road_males_new_final, aes(x=d_road, y=`50%`,fill=season,colour=season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()
+males_roaddist_new
 
 
 
