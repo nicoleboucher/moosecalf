@@ -1629,7 +1629,7 @@ ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\hab
 ########### STEP LENGTH RESULTS - ROAD DIST BY CUTAGE ##################
 -----------------------------------
 
-## STEP LENGTH BY SEASON
+##### Step length for covariates by season for new and regen ###############
 #spring
 slength_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL",7]))
 slength_lnslroaddist_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lnSL:ln_start_roaddist",7]))
@@ -1680,7 +1680,7 @@ slength_lnslregencut_winter<-as.numeric(as.character(results_males_winter[result
 SL_males_road_regen_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
 SL_males_road_new_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
 
-##create responses for each wolf
+############ create responses for each wolf for new and regen ##############
 
 #spring
 wolves_used_available_final_spring <- wolves_used_available_final[wolves_used_available_final$season=="spring",]
@@ -1813,9 +1813,9 @@ SL_males_road_regen_winter[,2]<-as.numeric(as.character(SL_males_road_regen_wint
 SL_males_road_new_winter[,2]<-as.numeric(as.character(SL_males_road_new_winter[,2]))
 
 
-### BOOTSTRAPPED VALUES FOR ERROR RIBBONS
+############## BOOTSTRAPPED VALUES FOR ERROR RIBBONS #################
 
-##bootstrap for wolfs at each d_trail value - regen
+########### bootstrap for wolfs at each d_trail value - regen #################
 
 #spring
 average_regen_spring<-data.frame(matrix(NA, nrow = 200, ncol = 100))
@@ -1893,7 +1893,7 @@ for(i in 1:length(b.boot)){
 }
 
 
-##plot median and percentiles - regen
+########### plot median and percentiles - regen #####################
 
 #spring
 SL_males_road_regen_spring<-melt(average_regen_spring[c(1:200),])
@@ -1973,10 +1973,17 @@ names(SL_males_road_regen_final_winter)[1] <- "d_road"
 SL_road_males_regen_final<-rbind(SL_males_road_regen_final_spring,SL_males_road_regen_final_earlysum,SL_males_road_regen_final_latesum,SL_males_road_regen_final_autumn,SL_males_road_regen_final_winter)
 SL_road_males_regen_final$season <- factor(SL_road_males_regen_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
 SL_road_males_regen_final$d_road_exp <-exp(SL_road_males_regen_final$d_road)
+levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season)=="spring"] <- "Spring"
+levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season)=="earlysum"] <- "Early summer"
+levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season)=="latesum"] <- "Late summer"
+levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season)=="autumn"] <- "Autumn"
+levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season)=="winter"] <- "Winter"
 males_roaddist_regen <-ggplot(SL_road_males_regen_final, aes(x=d_road_exp, y=`50%`,fill=season,colour=season)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()+
   labs(x= "Distance to road (km)",y="Step length (km/h)")
+males_roaddist_regen
+
 
 ###### New #############
 #spring
@@ -2053,6 +2060,116 @@ for(i in 1:length(b.boot)){
     average_new_winter[i,]<-mean
   }
 }
+
+
+##plot median and percentiles - new
+
+#spring
+SL_males_road_new_spring<-melt(average_new_spring[c(1:200),])
+d_road_spring<-rep(d_road_spring,each=200)
+
+SL_males_road_new_spring<-as.data.frame(cbind(SL_males_road_new_spring,d_road_spring))
+
+SL_males_road_new_final_spring<-SL_males_road_new_spring %>% group_by(d_road_spring) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_spring$season <- "spring"
+names(SL_males_road_new_final_spring)[1] <- "d_road"
+
+#earlysum
+SL_males_road_new_earlysum<-melt(average_new_earlysum[c(1:200),])
+d_road_earlysum<-rep(d_road_earlysum,each=200)
+
+SL_males_road_new_earlysum<-as.data.frame(cbind(SL_males_road_new_earlysum,d_road_earlysum))
+
+SL_males_road_new_final_earlysum<-SL_males_road_new_earlysum %>% group_by(d_road_earlysum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_earlysum$season <- "earlysum"
+names(SL_males_road_new_final_earlysum)[1] <- "d_road"
+
+#latesum
+SL_males_road_new_latesum<-melt(average_new_latesum[c(1:200),])
+d_road_latesum<-rep(d_road_latesum,each=200)
+
+SL_males_road_new_latesum<-as.data.frame(cbind(SL_males_road_new_latesum,d_road_latesum))
+
+SL_males_road_new_final_latesum<-SL_males_road_new_latesum %>% group_by(d_road_latesum) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_latesum$season <- "latesum"
+names(SL_males_road_new_final_latesum)[1] <- "d_road"
+
+#autumn
+SL_males_road_new_autumn<-melt(average_new_autumn[c(1:200),])
+d_road_autumn<-rep(d_road_autumn,each=200)
+
+SL_males_road_new_autumn<-as.data.frame(cbind(SL_males_road_new_autumn,d_road_autumn))
+
+SL_males_road_new_final_autumn<-SL_males_road_new_autumn %>% group_by(d_road_autumn) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_autumn$season <- "autumn"
+names(SL_males_road_new_final_autumn)[1] <- "d_road"
+
+#winter
+SL_males_road_new_winter<-melt(average_new_winter[c(1:200),])
+d_road_winter<-rep(d_road_winter,each=200)
+
+SL_males_road_new_winter<-as.data.frame(cbind(SL_males_road_new_winter,d_road_winter))
+
+SL_males_road_new_final_winter<-SL_males_road_new_winter %>% group_by(d_road_winter) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+SL_males_road_new_final_winter$season <- "winter"
+names(SL_males_road_new_final_winter)[1] <- "d_road"
+
+SL_road_males_new_final<-rbind(SL_males_road_new_final_spring,SL_males_road_new_final_earlysum,SL_males_road_new_final_latesum,SL_males_road_new_final_autumn,SL_males_road_new_final_winter)
+SL_road_males_new_final$season <- factor(SL_road_males_new_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
+SL_road_males_new_final$d_road_exp <-exp(SL_road_males_new_final$d_road)
+levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="spring"] <- "Spring"
+levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="earlysum"] <- "Early summer"
+levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="latesum"] <- "Late summer"
+levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="autumn"] <- "Autumn"
+levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="winter"] <- "Winter"
+
+males_roaddist_new <-ggplot(SL_road_males_new_final, aes(x=d_road_exp, y=`50%`,fill=season,colour=season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()+
+  labs(x= "Distance to road (m)",y="Step length (km/h)")
+
+males_roaddist_new
+
+prow <- plot_grid(
+  males_roaddist_new + theme(legend.position="none"),
+  males_roaddist_regen + theme(legend.position="none"),
+  align = 'vh',
+  labels = c("A", "B"),
+  hjust = -1,
+  nrow = 1
+)
+prow
+
+legend <- get_legend(
+  # create some space to the left of the legend
+  males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12))
+)
+plot_grid(prow, legend, rel_widths = c(3, .4))
 
 ##plot median and percentiles - new
 
