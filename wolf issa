@@ -205,57 +205,6 @@ wolves_ua_sp_end <- SpatialPointsDataFrame(wolves_used_available_final[,7:8],
                                            wolves_used_available_final, proj4string=crs)
 backup <- wolves_used_available_final
 
-############### mean May/June lagged NDVI ########################
-
-#Add rasters for May/June for each year
-#2017
-MOD13Q1_NDVI_2017_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_129.tif")
-MOD13Q1_NDVI_2017_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_145.tif")
-MOD13Q1_NDVI_2017_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_161.tif")
-MOD13Q1_NDVI_2017_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2017_177.tif")
-#2018
-MOD13Q1_NDVI_2018_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_129.tif")
-MOD13Q1_NDVI_2018_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_145.tif")
-MOD13Q1_NDVI_2018_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_161.tif")
-MOD13Q1_NDVI_2018_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2018_177.tif")
-#2019
-MOD13Q1_NDVI_2019_129<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_129.tif")
-MOD13Q1_NDVI_2019_145<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_145.tif")
-MOD13Q1_NDVI_2019_161<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_161.tif")
-MOD13Q1_NDVI_2019_177<-raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI\\MOD13Q1_NDVI_2019_177.tif")
-
-#find the max NDVI for each pixel in the raster stack:
-meanNDVI2017<-mean(MOD13Q1_NDVI_2017_129,MOD13Q1_NDVI_2017_145,MOD13Q1_NDVI_2017_161,MOD13Q1_NDVI_2017_177)
-meanNDVI2018<-mean(MOD13Q1_NDVI_2018_129,MOD13Q1_NDVI_2018_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2018_177)
-meanNDVI2019<-mean(MOD13Q1_NDVI_2019_129,MOD13Q1_NDVI_2019_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2019_177)
-rm(MOD13Q1_NDVI_2017_129,MOD13Q1_NDVI_2017_145,MOD13Q1_NDVI_2017_161,MOD13Q1_NDVI_2017_177,MOD13Q1_NDVI_2018_129,MOD13Q1_NDVI_2018_145,MOD13Q1_NDVI_2018_161,MOD13Q1_NDVI_2018_177,MOD13Q1_NDVI_2019_129,MOD13Q1_NDVI_2019_145,MOD13Q1_NDVI_2019_161,MOD13Q1_NDVI_2019_177)
-
-#reproject raster
-meanNDVI2017 <- projectRaster(meanNDVI2017, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
-meanNDVI2018 <- projectRaster(meanNDVI2018, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
-meanNDVI2019 <- projectRaster(meanNDVI2019, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
-
-#change to velox object
-meanNDVI2017.vx <- velox(meanNDVI2017)
-meanNDVI2018.vx <- velox(meanNDVI2018)
-meanNDVI2019.vx <- velox(meanNDVI2019)
-
-#extract lagged NDVI values (e.g. if 2018, select from 2017 NDVI May/June mean) at start of step
-wolves_used_available_final$start_meanNDVIlag <- if (wolves_used_available_final$year == 2018){meanNDVI2017.vx$extract_points(wolves_ua_sp_start)*0.0001
-} else if (wolves_used_available_final$year == 2019){meanNDVI2018.vx$extract_points(wolves_ua_sp_start)*0.0001
-} else if (wolves_used_available_final$year == 2020) {meanNDVI2019.vx$extract_points(wolves_ua_sp_start)*0.0001
-      } else (print(0))
-
-#extract lagged NDVI values (e.g. if 2018, select from 2017 NDVI May/June mean) at end of step
-wolves_used_available_final$end_meanNDVIlag <- if (wolves_used_available_final$year == 2018){meanNDVI2017.vx$extract_points(wolves_ua_sp_end)*0.0001
-} else if (wolves_used_available_final$year == 2019){meanNDVI2018.vx$extract_points(wolves_ua_sp_end)*0.0001
-} else if (wolves_used_available_final$year == 2020) {meanNDVI2019.vx$extract_points(wolves_ua_sp_end)*0.0001
-      } else (print(0))
-rm(meanNDVI2017,meanNDVI2018,meanNDVI2019)
-
-wolves_used_available_final$start_meanNDVIlag[is.na(wolves_used_available_final$start_meanNDVIlag)] = mean(wolves_used_available_final$start_meanNDVIlag, na.rm=TRUE)
-wolves_used_available_final$end_meanNDVIlag[is.na(wolves_used_available_final$end_meanNDVIlag)] = mean(wolves_used_available_final$end_meanNDVIlag, na.rm=TRUE)
-
 ############### current NDVI ##################
 
 #import NDVI files into stack
@@ -653,18 +602,6 @@ for (i in 1:length(year)){
     data3<-data2 %>% filter(name ==!!name[k])
     assign(paste(year[i],season[j],name[k],sep=" "),data3)
     if(nrow(data)>0){
-      #output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+strata(stepid),data=data3)
-      #wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
-      #Year<-append(Year,rep(year[i],length(output$coefficients)))
-      #Season<-append(Season,rep(as.character(season[j]),length(output$coefficients)))
-      #Model<-append(Model,rep("base",length(output$coefficients)))
-      #AIC<-append(AIC,rep(AIC(output),length(output$coefficients)))
-      #Covariates<-append(Covariates,names(output$coefficients))
-      #beta<-append(beta,coef(output))
-      #SE<-append(SE,coef(summary(output))[,"se(coef)"])
-      #p<-append(p,coef(summary(output))[,"Pr(>|z|)"])
-      #assign("base",output)
-      
       output<-clogit(used~lnSL+lnSL:sinhour+end_landcover_Pine+end_landcover_Deciduous+end_landcover_MixedForest+end_landcover_Coniferous+ln_end_water+end_roaddens+ln_start_roaddist:lnSL+end_cutageclass_new + end_cutageclass_regen+end_sizeha+start_cutageclass_new:lnSL+start_cutageclass_regen:lnSL+ln_end_roaddist+ln_end_roaddist:end_cutageclass_new+ln_end_roaddist:end_cutageclass_regen+strata(stepid),data=data3)
       wolf<-append(wolf,rep(as.character(name[k]),length(output$coefficients)))
       Year<-append(Year,rep(year[i],length(output$coefficients)))
@@ -802,15 +739,11 @@ levels(AIC_results_ordered$Model)
 ################# Plot AIC results #####################
 
 #split data set into list by seasons
-AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("base", "anthro","anthro1","facilitatemovement","facilitatemovement1","productivity","preydiversity","complete"))
+AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("anthro","facilitatemovement","preydiversity","complete"))
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Complete"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="base"] <- "Base"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro"] <- "Anthropogenic"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro1"] <- "Anthropogenic1"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement"] <- "Movement"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement1"] <- "Movement1"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="preydiversity"] <- "Prey"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="productivity"] <- "Productivity"
 levels(AIC_results_ordered$Model)
 
 AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
@@ -1981,7 +1914,7 @@ levels(SL_road_males_regen_final$season)[levels(SL_road_males_regen_final$season
 males_roaddist_regen <-ggplot(SL_road_males_regen_final, aes(x=d_road_exp, y=`50%`,fill=season,colour=season)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()+
-  labs(x= "Distance to road (km)",y="Step length (km/h)")
+  labs(x= "Distance to road (m)",y="Step length (km/h)")
 males_roaddist_regen
 
 
@@ -2169,19 +2102,19 @@ legend <- get_legend(
   # create some space to the left of the legend
   males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12))
 )
-plot_grid(prow, legend, rel_widths = c(3, .4))
+distroad <- plot_grid(prow, legend, rel_widths = c(3, .4))
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\distance to road.tiff", plot=distroad, units="in", width=17, height=8, dpi=600, compression = 'lzw')
+
 
 -----------------------------------
-### RSS CALCULATIONS ###
+########### RSS CALCULATIONS ##############
 -----------------------------------
 
 ## RSS - MALES
-dtrail_beta<-as.numeric(as.character(results_males[results_males$Covariates=="lntrail",5]))
-summary(slength)
-
-motor_beta<-as.numeric(as.character(results_males[results_males$Covariates=="logit_pmotor:lntrail",5]))
-nmotor_beta<-as.numeric(as.character(results_males[results_males$Covariates=="lntrail:logit_pnmotor",5]))
-
+droad_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist",5]))
+motor_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist:end_cutageclass_new1",5]))
+nmotor_beta<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lntrail:logit_pnmotor",5]))
+levels(results_males_spring$Covariates)
 mean_SL<-mean(gbears_used_available_final[gbears_used_available_final$used==1,11])
 
 d_trail<-seq(2*mean_SL+1,1000,length.out = 100)
