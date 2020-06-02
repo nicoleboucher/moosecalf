@@ -195,6 +195,9 @@ p_allsl <- ggplot(usedall,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4
 p_allsl
 plot_grid(p_springsl,p_earlysumsl,p_latesumsl,p_autumnsl,p_wintersl,ncol=3)
 
+usedall$hour <- hour(usedall$t1)
+plot(usedall[usedall$season=="spring",]$hour, usedall[usedall$season=="spring",]$sl)
+
 ####################### Spatial preparation and covariate extraction #########################
 
 #making steps into spatialpointsdataframe (from end points)
@@ -739,11 +742,11 @@ levels(AIC_results_ordered$Model)
 ################# Plot AIC results #####################
 
 #split data set into list by seasons
-AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("anthro","facilitatemovement","preydiversity","complete"))
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Complete"
+AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("preydiversity","facilitatemovement","anthro","complete"))
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Global"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro"] <- "Anthropogenic"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement"] <- "Movement"
-levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="preydiversity"] <- "Prey"
+levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="preydiversity"] <- "Prey Diversity"
 levels(AIC_results_ordered$Model)
 
 AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
@@ -755,7 +758,7 @@ levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="winter"]
 
 AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, width=2) + 
   geom_boxplot(aes(fill = Season),width=0.5,color="black", lwd = 1,
-               outlier.shape = NA)+labs(y="AIC weights")+
+               outlier.shape = NA)+scale_fill_viridis(discrete=TRUE)+labs(y="AIC weights")+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
         axis.text.x = element_text(size=20, colour = "black"),
@@ -768,14 +771,14 @@ AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, 
         legend.title=element_text(size=20),
         legend.text=element_text(size=20),
         legend.key.size=unit(1, "cm"),
-        legend.position=c(0.05,0.95), 
+        legend.position=c(0.015,0.98), 
        legend.justification = c(0, 1),
        legend.background = element_blank(),
-        legend.box.background = element_rect(colour = "black"))+
-  scale_fill_viridis(discrete=TRUE)
+        legend.box.background = element_rect(colour = "white"))+
+  guides(fill=guide_legend(ncol=1))
 AIC_distributions
 
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\AIC_Weights2.tiff", units="in", width=14, height=8, dpi=300, compression = 'lzw')
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\AIC_Weights.tiff", units="in", width=14, height=8, dpi=300, compression = 'lzw')
 
 ---------------------------------------------------
 ########## Beta Coefficient Bootstrapping #########
@@ -1124,11 +1127,12 @@ movement_fixed_betas_allseasons$Covariate<-as.character(movement_fixed_betas_all
 movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:newcut","lnSL:New cut")
 movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:regencut","lnSL:Regen cut")
 movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:roaddens","lnSL:Road density")
-movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:roaddist","lnSL:Roaddist")
+movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:roaddist","lnSL:Road dist")
 movement_fixed_betas_allseasons$Covariate<-replace(movement_fixed_betas_allseasons$Covariate,movement_fixed_betas_allseasons$Covariate=="lnSL:sinhour","lnSL:sin(hour)")
+names(movement_fixed_betas_allseasons)[names(movement_fixed_betas_allseasons) == "season"] <- "Season"
 
 movement_annual<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_betas_allseasons, width=2) + 
-  geom_boxplot(aes(fill = season),width=0.8,color="black", lwd = 1,
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 1,
                outlier.shape = NA)+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
@@ -1142,13 +1146,14 @@ movement_annual<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_beta
         legend.title=element_text(size=20),
         legend.text=element_text(size=20),
         legend.key.size=unit(1, "cm"),
-        legend.position=c(0.83,1), 
+        legend.position=c(0.8,0.98), 
        legend.justification = c(0, 1),
        legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black")) +
         geom_hline(yintercept=0,col="red",lwd=2)+ 
   ylim(-0.2, 0.6)+
-  scale_fill_viridis(discrete=TRUE)
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))
 movement_annual
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\movement betas.tiff", plot=movement_annual, units="in", width=16, height=8, dpi=600, compression = 'lzw')
@@ -1177,10 +1182,10 @@ levels(habitat_betas_spring_long$Covariate)
 habitat_betas_spring_long$Covariate<-as.character(habitat_betas_spring_long$Covariate)
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_rege","Regen. cut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_edgein","ln_Edge in") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_edgeout","ln_Edge out") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_elevation","Elevation") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
@@ -1194,18 +1199,19 @@ habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_slope","Slope") #replaces text
 habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist","ln_Roaddist") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln_Roaddist:New cut") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln_Roaddist:Regen cut") #replaces text
-habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_water","ln_water") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln(Road dist):New cut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln(Road dist):Regen cut") #replaces text
+habitat_betas_spring_long$Covariate<-replace(habitat_betas_spring_long$Covariate,habitat_betas_spring_long$Covariate=="ln_end_water","ln(Water)") #replaces text
+
 #make covariate column into factor
 habitat_betas_spring_long$Covariate<-as.factor(habitat_betas_spring_long$Covariate)
 levels(habitat_betas_spring_long$Covariate)
 habitat_betas_spring_long$season <- "spring"
 
-habitat_fixed_landcover_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="Coniferous"|habitat_betas_spring_long$Covariate=="Deciduous"|habitat_betas_spring_long$Covariate=="Mixed forest"|habitat_betas_spring_long$Covariate=="Pine"|habitat_betas_spring_long$Covariate=="ln_water"|habitat_betas_spring_long$Covariate=="NDVI",]
-habitat_fixed_roads_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="ln_Roaddist"|habitat_betas_spring_long$Covariate=="ln_Roaddist:New cut"|habitat_betas_spring_long$Covariate=="ln_Roaddist:Regen cut"|habitat_betas_spring_long$Covariate=="Road density"|habitat_betas_spring_long$Covariate=="Road density:sin(hour)",]
-habitat_fixed_cuts_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="Cut size"|habitat_betas_spring_long$Covariate=="Cut size:NDVI"|habitat_betas_spring_long$Covariate=="New cut"|habitat_betas_spring_long$Covariate=="New cut:Cut size"|habitat_betas_spring_long$Covariate=="Regen cut"|habitat_betas_spring_long$Covariate=="Regen cut:Cut size"|habitat_betas_spring_long$Covariate=="ln_Edge in"|habitat_betas_spring_long$Covariate=="ln_Edge out",]
+habitat_fixed_landcover_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="Coniferous"|habitat_betas_spring_long$Covariate=="Deciduous"|habitat_betas_spring_long$Covariate=="Mixed forest"|habitat_betas_spring_long$Covariate=="Pine"|habitat_betas_spring_long$Covariate=="ln(Water)"|habitat_betas_spring_long$Covariate=="NDVI",]
+habitat_fixed_roads_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="ln(Road dist)"|habitat_betas_spring_long$Covariate=="ln(Road dist):New cut"|habitat_betas_spring_long$Covariate=="ln(Road dist):Regen cut"|habitat_betas_spring_long$Covariate=="Road density"|habitat_betas_spring_long$Covariate=="Road density:sin(hour)",]
+habitat_fixed_cuts_spring<-habitat_betas_spring_long[habitat_betas_spring_long$Covariate=="Cut size"|habitat_betas_spring_long$Covariate=="Cut size:NDVI"|habitat_betas_spring_long$Covariate=="New cut"|habitat_betas_spring_long$Covariate=="New cut:Cut size"|habitat_betas_spring_long$Covariate=="Regen cut"|habitat_betas_spring_long$Covariate=="Regen cut:Cut size"|habitat_betas_spring_long$Covariate=="ln(Edge in)"|habitat_betas_spring_long$Covariate=="ln(Edge out)",]
  
 ### SUMMARY TABLE ###
 betas_habitat_spring<-group_by(habitat_betas_spring_long,Covariate,Reproductive_class_spring) %>% summarise(median = median(Beta),
@@ -1232,10 +1238,10 @@ levels(habitat_betas_earlysum_long$Covariate)
 habitat_betas_earlysum_long$Covariate<-as.character(habitat_betas_earlysum_long$Covariate)
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_rege","Regen. cut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_edgein","ln_Edge in") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_edgeout","ln_Edge out") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_elevation","Elevation") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
@@ -1249,20 +1255,20 @@ habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covar
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_slope","Slope") #replaces text
 habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist","ln_Roaddist") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln_Roaddist:New cut") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln_Roaddist:Regen cut") #replaces text
-habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_water","ln_water") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln(Road dist):New cut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln(Road dist):Regen cut") #replaces text
+habitat_betas_earlysum_long$Covariate<-replace(habitat_betas_earlysum_long$Covariate,habitat_betas_earlysum_long$Covariate=="ln_end_water","ln(Water)") #replaces text
 
 #make covariate column into factor
 habitat_betas_earlysum_long$Covariate<-as.factor(habitat_betas_earlysum_long$Covariate)
 levels(habitat_betas_earlysum_long$Covariate)
 habitat_betas_earlysum_long$season <- "earlysum"
 
-habitat_fixed_landcover_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="Coniferous"|habitat_betas_earlysum_long$Covariate=="Deciduous"|habitat_betas_earlysum_long$Covariate=="Mixed forest"|habitat_betas_earlysum_long$Covariate=="Pine"|habitat_betas_earlysum_long$Covariate=="ln_water"|habitat_betas_earlysum_long$Covariate=="NDVI",]
-habitat_fixed_roads_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="ln_Roaddist"|habitat_betas_earlysum_long$Covariate=="ln_Roaddist:New cut"|habitat_betas_earlysum_long$Covariate=="ln_Roaddist:Regen cut"|habitat_betas_earlysum_long$Covariate=="Road density"|habitat_betas_earlysum_long$Covariate=="Road density:sin(hour)",]
-habitat_fixed_cuts_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="Cut size"|habitat_betas_earlysum_long$Covariate=="Cut size:NDVI"|habitat_betas_earlysum_long$Covariate=="New cut"|habitat_betas_earlysum_long$Covariate=="New cut:Cut size"|habitat_betas_earlysum_long$Covariate=="Regen cut"|habitat_betas_earlysum_long$Covariate=="Regen cut:Cut size"|habitat_betas_earlysum_long$Covariate=="ln_Edge in"|habitat_betas_earlysum_long$Covariate=="ln_Edge out",]
- 
+habitat_fixed_landcover_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="Coniferous"|habitat_betas_earlysum_long$Covariate=="Deciduous"|habitat_betas_earlysum_long$Covariate=="Mixed forest"|habitat_betas_earlysum_long$Covariate=="Pine"|habitat_betas_earlysum_long$Covariate=="ln(Water)"|habitat_betas_earlysum_long$Covariate=="NDVI",]
+habitat_fixed_roads_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="ln(Road dist)"|habitat_betas_earlysum_long$Covariate=="ln(Road dist):New cut"|habitat_betas_earlysum_long$Covariate=="ln(Road dist):Regen cut"|habitat_betas_earlysum_long$Covariate=="Road density"|habitat_betas_earlysum_long$Covariate=="Road density:sin(hour)",]
+habitat_fixed_cuts_earlysum<-habitat_betas_earlysum_long[habitat_betas_earlysum_long$Covariate=="Cut size"|habitat_betas_earlysum_long$Covariate=="Cut size:NDVI"|habitat_betas_earlysum_long$Covariate=="New cut"|habitat_betas_earlysum_long$Covariate=="New cut:Cut size"|habitat_betas_earlysum_long$Covariate=="Regen cut"|habitat_betas_earlysum_long$Covariate=="Regen cut:Cut size"|habitat_betas_earlysum_long$Covariate=="ln(Edge in)"|habitat_betas_earlysum_long$Covariate=="ln(Edge out)",]
+
 ### SUMMARY TABLE ###
 betas_habitat_earlysum<-group_by(habitat_betas_earlysum_long,Covariate,Reproductive_class_earlysum) %>% summarise(median = median(Beta),
                                                                                          lower = quantile(Beta,0.025),
@@ -1288,10 +1294,10 @@ levels(habitat_betas_latesum_long$Covariate)
 habitat_betas_latesum_long$Covariate<-as.character(habitat_betas_latesum_long$Covariate)
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_rege","Regen. cut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_edgein","ln_Edge in") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_edgeout","ln_Edge out") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_elevation","Elevation") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
@@ -1305,20 +1311,20 @@ habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covaria
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_slope","Slope") #replaces text
 habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist","ln_Roaddist") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln_Roaddist:New cut") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln_Roaddist:Regen cut") #replaces text
-habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_water","ln_water") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln(Road dist):New cut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln(Road dist):Regen cut") #replaces text
+habitat_betas_latesum_long$Covariate<-replace(habitat_betas_latesum_long$Covariate,habitat_betas_latesum_long$Covariate=="ln_end_water","ln(Water)") #replaces text
 
 #make covariate column into factor
 habitat_betas_latesum_long$Covariate<-as.factor(habitat_betas_latesum_long$Covariate)
 levels(habitat_betas_latesum_long$Covariate)
 habitat_betas_latesum_long$season <- "latesum"
 
-habitat_fixed_landcover_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="Coniferous"|habitat_betas_latesum_long$Covariate=="Deciduous"|habitat_betas_latesum_long$Covariate=="Mixed forest"|habitat_betas_latesum_long$Covariate=="Pine"|habitat_betas_latesum_long$Covariate=="ln_water"|habitat_betas_latesum_long$Covariate=="NDVI",]
-habitat_fixed_roads_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="ln_Roaddist"|habitat_betas_latesum_long$Covariate=="ln_Roaddist:New cut"|habitat_betas_latesum_long$Covariate=="ln_Roaddist:Regen cut"|habitat_betas_latesum_long$Covariate=="Road density"|habitat_betas_latesum_long$Covariate=="Road density:sin(hour)",]
-habitat_fixed_cuts_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="Cut size"|habitat_betas_latesum_long$Covariate=="Cut size:NDVI"|habitat_betas_latesum_long$Covariate=="New cut"|habitat_betas_latesum_long$Covariate=="New cut:Cut size"|habitat_betas_latesum_long$Covariate=="Regen cut"|habitat_betas_latesum_long$Covariate=="Regen cut:Cut size"|habitat_betas_latesum_long$Covariate=="ln_Edge in"|habitat_betas_latesum_long$Covariate=="ln_Edge out",]
- 
+habitat_fixed_landcover_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="Coniferous"|habitat_betas_latesum_long$Covariate=="Deciduous"|habitat_betas_latesum_long$Covariate=="Mixed forest"|habitat_betas_latesum_long$Covariate=="Pine"|habitat_betas_latesum_long$Covariate=="ln(Water)"|habitat_betas_latesum_long$Covariate=="NDVI",]
+habitat_fixed_roads_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="ln(Road dist)"|habitat_betas_latesum_long$Covariate=="ln(Road dist):New cut"|habitat_betas_latesum_long$Covariate=="ln(Road dist):Regen cut"|habitat_betas_latesum_long$Covariate=="Road density"|habitat_betas_latesum_long$Covariate=="Road density:sin(hour)",]
+habitat_fixed_cuts_latesum<-habitat_betas_latesum_long[habitat_betas_latesum_long$Covariate=="Cut size"|habitat_betas_latesum_long$Covariate=="Cut size:NDVI"|habitat_betas_latesum_long$Covariate=="New cut"|habitat_betas_latesum_long$Covariate=="New cut:Cut size"|habitat_betas_latesum_long$Covariate=="Regen cut"|habitat_betas_latesum_long$Covariate=="Regen cut:Cut size"|habitat_betas_latesum_long$Covariate=="ln(Edge in)"|habitat_betas_latesum_long$Covariate=="ln(Edge out)",]
+
 ### SUMMARY TABLE ###
 betas_habitat_latesum<-group_by(habitat_betas_latesum_long,Covariate,Reproductive_class_latesum) %>% summarise(median = median(Beta),
                                                                                          lower = quantile(Beta,0.025),
@@ -1344,10 +1350,10 @@ levels(habitat_betas_autumn_long$Covariate)
 habitat_betas_autumn_long$Covariate<-as.character(habitat_betas_autumn_long$Covariate)
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_rege","Regen. cut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_edgein","ln_Edge in") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_edgeout","ln_Edge out") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_elevation","Elevation") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
@@ -1361,21 +1367,20 @@ habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_slope","Slope") #replaces text
 habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist","ln_Roaddist") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln_Roaddist:New cut") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln_Roaddist:Regen cut") #replaces text
-habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_water","ln_water") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln(Road dist):New cut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln(Road dist):Regen cut") #replaces text
+habitat_betas_autumn_long$Covariate<-replace(habitat_betas_autumn_long$Covariate,habitat_betas_autumn_long$Covariate=="ln_end_water","ln(Water)") #replaces text
 
 #make covariate column into factor
 habitat_betas_autumn_long$Covariate<-as.factor(habitat_betas_autumn_long$Covariate)
 levels(habitat_betas_autumn_long$Covariate)
 habitat_betas_autumn_long$season <- "autumn"
 
+habitat_fixed_landcover_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="Coniferous"|habitat_betas_autumn_long$Covariate=="Deciduous"|habitat_betas_autumn_long$Covariate=="Mixed forest"|habitat_betas_autumn_long$Covariate=="Pine"|habitat_betas_autumn_long$Covariate=="ln(Water)"|habitat_betas_autumn_long$Covariate=="NDVI",]
+habitat_fixed_roads_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="ln(Road dist)"|habitat_betas_autumn_long$Covariate=="ln(Road dist):New cut"|habitat_betas_autumn_long$Covariate=="ln(Road dist):Regen cut"|habitat_betas_autumn_long$Covariate=="Road density"|habitat_betas_autumn_long$Covariate=="Road density:sin(hour)",]
+habitat_fixed_cuts_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="Cut size"|habitat_betas_autumn_long$Covariate=="Cut size:NDVI"|habitat_betas_autumn_long$Covariate=="New cut"|habitat_betas_autumn_long$Covariate=="New cut:Cut size"|habitat_betas_autumn_long$Covariate=="Regen cut"|habitat_betas_autumn_long$Covariate=="Regen cut:Cut size"|habitat_betas_autumn_long$Covariate=="ln(Edge in)"|habitat_betas_autumn_long$Covariate=="ln(Edge out)",]
 
-habitat_fixed_landcover_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="Coniferous"|habitat_betas_autumn_long$Covariate=="Deciduous"|habitat_betas_autumn_long$Covariate=="Mixed forest"|habitat_betas_autumn_long$Covariate=="Pine"|habitat_betas_autumn_long$Covariate=="ln_water"|habitat_betas_autumn_long$Covariate=="NDVI",]
-habitat_fixed_roads_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="ln_Roaddist"|habitat_betas_autumn_long$Covariate=="ln_Roaddist:New cut"|habitat_betas_autumn_long$Covariate=="ln_Roaddist:Regen cut"|habitat_betas_autumn_long$Covariate=="Road density"|habitat_betas_autumn_long$Covariate=="Road density:sin(hour)",]
-habitat_fixed_cuts_autumn<-habitat_betas_autumn_long[habitat_betas_autumn_long$Covariate=="Cut size"|habitat_betas_autumn_long$Covariate=="Cut size:NDVI"|habitat_betas_autumn_long$Covariate=="New cut"|habitat_betas_autumn_long$Covariate=="New cut:Cut size"|habitat_betas_autumn_long$Covariate=="Regen cut"|habitat_betas_autumn_long$Covariate=="Regen cut:Cut size"|habitat_betas_autumn_long$Covariate=="ln_Edge in"|habitat_betas_autumn_long$Covariate=="ln_Edge out",]
- 
 ### SUMMARY TABLE ###
 betas_habitat_autumn<-group_by(habitat_betas_autumn_long,Covariate,Reproductive_class_autumn) %>% summarise(median = median(Beta),
                                                                                          lower = quantile(Beta,0.025),
@@ -1401,10 +1406,10 @@ levels(habitat_betas_winter_long$Covariate)
 habitat_betas_winter_long$Covariate<-as.character(habitat_betas_winter_long$Covariate)
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege","Regen. cut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgein","ln_Edge in") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgeout","ln_Edge out") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_elevation","Elevation") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
@@ -1418,20 +1423,20 @@ habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_slope","Slope") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_sizeha.end_NDVI","Cut size:NDVI") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist","ln_Roaddist") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln_Roaddist:New cut") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln_Roaddist:Regen cut") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_water","ln_water") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_ne","ln(Road dist):New cut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist.end_cutageclass_rege","ln(Road dist):Regen cut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_water","ln(Water)") #replaces text
 
 #make covariate column into factor
 habitat_betas_winter_long$Covariate<-as.factor(habitat_betas_winter_long$Covariate)
 levels(habitat_betas_winter_long$Covariate)
 habitat_betas_winter_long$season <- "winter"
 
-habitat_fixed_landcover_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="Coniferous"|habitat_betas_winter_long$Covariate=="Deciduous"|habitat_betas_winter_long$Covariate=="Mixed forest"|habitat_betas_winter_long$Covariate=="Pine"|habitat_betas_winter_long$Covariate=="ln_water"|habitat_betas_winter_long$Covariate=="NDVI",]
-habitat_fixed_roads_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="ln_Roaddist"|habitat_betas_winter_long$Covariate=="ln_Roaddist:New cut"|habitat_betas_winter_long$Covariate=="ln_Roaddist:Regen cut"|habitat_betas_winter_long$Covariate=="Road density"|habitat_betas_winter_long$Covariate=="Road density:sin(hour)",]
-habitat_fixed_cuts_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="Cut size"|habitat_betas_winter_long$Covariate=="Cut size:NDVI"|habitat_betas_winter_long$Covariate=="New cut"|habitat_betas_winter_long$Covariate=="New cut:Cut size"|habitat_betas_winter_long$Covariate=="Regen cut"|habitat_betas_winter_long$Covariate=="Regen cut:Cut size"|habitat_betas_winter_long$Covariate=="ln_Edge in"|habitat_betas_winter_long$Covariate=="ln_Edge out",]
- 
+habitat_fixed_landcover_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="Coniferous"|habitat_betas_winter_long$Covariate=="Deciduous"|habitat_betas_winter_long$Covariate=="Mixed forest"|habitat_betas_winter_long$Covariate=="Pine"|habitat_betas_winter_long$Covariate=="ln(Water)"|habitat_betas_winter_long$Covariate=="NDVI",]
+habitat_fixed_roads_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="ln(Road dist)"|habitat_betas_winter_long$Covariate=="ln(Road dist):New cut"|habitat_betas_winter_long$Covariate=="ln(Road dist):Regen cut"|habitat_betas_winter_long$Covariate=="Road density"|habitat_betas_winter_long$Covariate=="Road density:sin(hour)",]
+habitat_fixed_cuts_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="Cut size"|habitat_betas_winter_long$Covariate=="Cut size:NDVI"|habitat_betas_winter_long$Covariate=="New cut"|habitat_betas_winter_long$Covariate=="New cut:Cut size"|habitat_betas_winter_long$Covariate=="Regen cut"|habitat_betas_winter_long$Covariate=="Regen cut:Cut size"|habitat_betas_winter_long$Covariate=="ln(Edge in)"|habitat_betas_winter_long$Covariate=="ln(Edge out)",]
+
 ### SUMMARY TABLE ###
 betas_habitat_winter<-group_by(habitat_betas_winter_long,Covariate,Reproductive_class_winter) %>% summarise(median = median(Beta),
                                                                                          lower = quantile(Beta,0.025),
@@ -1479,12 +1484,16 @@ levels(habitat_fixed_betas_roads_allseasons$season)[levels(habitat_fixed_betas_r
 levels(habitat_fixed_betas_roads_allseasons$season)[levels(habitat_fixed_betas_roads_allseasons$season)=="autumn"] <- "Autumn"
 levels(habitat_fixed_betas_roads_allseasons$season)[levels(habitat_fixed_betas_roads_allseasons$season)=="winter"] <- "Winter"
 
+habitat_fixed_betas_landcover_allseasons$Covariate <- factor(habitat_fixed_betas_landcover_allseasons$Covariate, levels = c("Coniferous", "Pine", "Deciduous","Mixed forest","NDVI","ln(Water)"))
+levels(habitat_fixed_betas_landcover_allseasons$Covariate)
+names(habitat_fixed_betas_landcover_allseasons)[names(habitat_fixed_betas_landcover_allseasons) == "season"] <- "Season"
+
 habitat_landcover_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_landcover_allseasons, width=2) + 
-  geom_boxplot(aes(fill = season),width=0.8,color="black", lwd = 0.8,
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
                outlier.shape = NA)+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
-        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.x = element_text(size=16, colour = "black"),
         axis.text.y = element_text(size=20, colour = "black"),
         axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
@@ -1494,23 +1503,27 @@ habitat_landcover_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fi
         legend.title=element_text(size=20),
         legend.text=element_text(size=20),
         legend.key.size=unit(1, "cm"),
-        legend.position=c(0.83,1), 
+        legend.position=c(0.01,0.99), 
        legend.justification = c(0, 1),
        legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black")) +
-        geom_hline(yintercept=0,col="red",lwd=2)+
-  scale_fill_viridis(discrete=TRUE)
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-2, 2)+
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))
 habitat_landcover_annual
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat landcover betas.tiff", plot=habitat_landcover_annual, units="in", width=17, height=8, dpi=600, compression = 'lzw')
 
 
+names(habitat_fixed_betas_roads_allseasons)[names(habitat_fixed_betas_roads_allseasons) == "season"] <- "Season"
+
 habitat_roads_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_roads_allseasons, width=2) + 
-  geom_boxplot(aes(fill = season),width=0.8,color="black", lwd = 0.8,
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
                outlier.shape = NA)+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
-        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.x = element_text(size=16, colour = "black"),
         axis.text.y = element_text(size=20, colour = "black"),
         axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
@@ -1520,24 +1533,27 @@ habitat_roads_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_
         legend.title=element_text(size=20),
         legend.text=element_text(size=20),
         legend.key.size=unit(1, "cm"),
-        legend.position=c(0.83,1), 
+        legend.position=c(0.02,0.99), 
        legend.justification = c(0, 1),
        legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black")) +
         geom_hline(yintercept=0,col="red",lwd=2)+ 
-  ylim(-0.75, 0.75)+
+  ylim(-0.75, 0.75)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))+
   scale_fill_viridis(discrete=TRUE)
 habitat_roads_annual
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat roads betas.tiff", plot=habitat_roads_annual, units="in", width=17, height=8, dpi=600, compression = 'lzw')
 
+names(habitat_fixed_betas_cuts_allseasons)[names(habitat_fixed_betas_cuts_allseasons) == "season"] <- "Season"
 
+habitat_fixed_betas_cuts_allseasons$Covariate <- factor(habitat_fixed_betas_cuts_allseasons$Covariate, levels = c("ln(Edge in)", "ln(Edge out)", "Cut size","Cut size:NDVI","New cut","New cut:Cut size","Regen cut","Regen cut:Cut size"))
 habitat_cuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_cuts_allseasons, width=2) + 
-  geom_boxplot(aes(fill = season),width=0.8,color="black", lwd = 0.8,
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
                outlier.shape = NA)+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
-        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.x = element_text(size=16, colour = "black"),
         axis.text.y = element_text(size=20, colour = "black"),
         axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
@@ -1547,16 +1563,138 @@ habitat_cuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_b
         legend.title=element_text(size=20),
         legend.text=element_text(size=20),
         legend.key.size=unit(1, "cm"),
-        legend.position=c(0.83,1), 
+        legend.position=c(0.02,0.99), 
        legend.justification = c(0, 1),
        legend.background = element_blank(),
         legend.box.background = element_rect(colour = "black")) +
         geom_hline(yintercept=0,col="red",lwd=2)+ 
-  ylim(-2.5, 2)+
+  ylim(-2, 2)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))+
   scale_fill_viridis(discrete=TRUE)
 habitat_cuts_annual
 
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat cuts betas.tiff", plot=habitat_cuts_annual, units="in", width=18, height=9, dpi=600, compression = 'lzw')
+
+habitat_fixed_betas_all_allseasons <- rbind(habitat_fixed_betas_roads_allseasons,habitat_fixed_betas_landcover_allseasons, habitat_fixed_betas_cuts_allseasons)
+
+
+habitat_landcovercuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_landcovercuts_allseasons, width=2) + 
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.01,0.99), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-2, 2)+
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))
+habitat_landcovercuts_annual
+
+#----------------------------------------
+graph1 <- subset(habitat_fixed_betas_all_allseasons, Covariate == "Coniferous" | Covariate == "Deciduous" | Covariate == "Pine" | Covariate == "Mixed forest" | Covariate == "ln(Water)" | Covariate == "NDVI" | Covariate == "ln(Road dist)")
+graph2 <- subset(habitat_fixed_betas_all_allseasons, Covariate == "Cut size" | Covariate == "New cut" | Covariate == "New cut:Cut size" | Covariate == "Regen cut" | Covariate == "Regen cut:Cut size" | Covariate == "ln(Road dist):New cut")
+graph3 <- subset(habitat_fixed_betas_all_allseasons, Covariate == "ln(Road dist):Regen cut" | Covariate == "Cut size:NDVI"| Covariate == "ln(Edge in)" | Covariate == "ln(Edge out)" | Covariate == "Road density" | Covariate == "Road density:sin(hour)")
+
+
+graph11<-ggplot(aes(y = Beta, x = Covariate), data = graph1, width=2) + 
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.01,0.99), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-2, 2)+theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))+
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.text=element_text(size=16),legend.title = element_blank(),legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))+guides(fill=guide_legend(ncol=5))
+
+graph22<-ggplot(aes(y = Beta, x = Covariate), data = graph2, width=2) + 
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.01,0.99), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-2, 2)+theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))+
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))
+
+graph33<-ggplot(aes(y = Beta, x = Covariate), data = graph3, width=2) + 
+  geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
+               outlier.shape = NA)+
+  theme_bw(base_size = 20) +
+  theme(axis.title = element_text(size=25),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(linetype = "solid", colour = "black", size=2),
+        panel.background = element_blank(),
+        legend.title=element_text(size=20),
+        legend.text=element_text(size=20),
+        legend.key.size=unit(1, "cm"),
+        legend.position=c(0.01,0.99), 
+       legend.justification = c(0, 1),
+       legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black")) +
+        geom_hline(yintercept=0,col="red",lwd=2)+ 
+  ylim(-2, 2)+
+  scale_fill_viridis(discrete=TRUE)+ theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "white"))
+
+Figure4 <- plot_grid(
+  graph11, NULL,
+  graph22 + theme(legend.position="none"),NULL,
+  graph33 + theme(legend.position="none"),
+  rel_heights = c(1,0,1,0,1),
+  align = 'vh',
+  labels = c("A", "B","C"),
+  hjust = -1,
+  nrow = 5
+)
+Figure4
+
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Figure 4.tiff", plot=Figure4, units="in", width=14, height=12, dpi=600, compression = 'lzw')
+
+
 
 -----------------------------------
 ########### STEP LENGTH RESULTS - ROAD DIST BY CUTAGE ##################
