@@ -2261,10 +2261,10 @@ for(i in 1:length(cutsize_spring)){
 RSS_males_cut_new_spring[,2]<-as.numeric(as.character(RSS_males_cut_new_spring[,2]))
 RSS_males_cut_regen_spring[,2]<-as.numeric(as.character(RSS_males_cut_regen_spring[,2]))
 
-average_new<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_new<-data.frame(matrix(NA, nrow = 10000, ncol = 100))
+b.boot<-1:10000
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_spring$RSS_males_cut_new_spring),18,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_spring$RSS_males_cut_new_spring),8,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
     x<-RSS_males_cut_new_spring[RSS_males_cut_new_spring$RSS_males_cut_new_spring==wolf_bstrap[j],]
@@ -2275,11 +2275,11 @@ for(i in 1:length(b.boot)){
   }
 }
 
-RSS_males_cut_new_spring2<-melt(average_new[c(1:200),])
+RSS_males_cut_new_spring2<-melt(average_new[c(1:10000),])
 
 RSS_males_cut_new_spring<-cbind(RSS_males_cut_new_spring2,cutsize_spring)
 
-RSS_males_motor_high_final<-RSS_males_motor_high %>% group_by(d_trail) %>%
+RSS_males_cut_new_spring_final<-RSS_males_cut_new_spring %>% group_by(cutsize_spring) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
@@ -2287,42 +2287,44 @@ RSS_males_motor_high_final<-RSS_males_motor_high %>% group_by(d_trail) %>%
             n=n())
 
 ##low motorised
-average_low<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_regen<-data.frame(matrix(NA, nrow = 10000, ncol = 100))
+b.boot<-1:10000
 for(i in 1:length(b.boot)){
-  bear_bstrap<-as.vector(sample(unique(RSS_males_motor_low$RSS_males_motor_low),18,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_spring$RSS_males_cut_regen_spring),8,replace=TRUE))
   bstrap<-data.frame()
-  for (j in 1:length(bear_bstrap)){
-    x<-RSS_males_motor_low[RSS_males_motor_low$RSS_males_motor_low==bear_bstrap[j],]
+  for (j in 1:length(wolf_bstrap)){
+    x<-RSS_males_cut_regen_spring[RSS_males_cut_regen_spring$RSS_males_cut_regen_spring==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
     mean<-colMeans(bstrap[,2:101])
-    average_low[i,]<-mean
+    average_regen[i,]<-mean
   }
 }
 
-RSS_males_motor_low2<-melt(average_low[c(1:200),])
+RSS_males_cut_regen_spring2<-melt(average_regen[c(1:10000),])
 
-RSS_males_motor_low<-cbind(RSS_males_motor_low2,d_trail)
+RSS_males_cut_regen_spring<-cbind(RSS_males_cut_regen_spring2,cutsize_spring)
 
-RSS_males_motor_low_final<-RSS_males_motor_low %>% group_by(d_trail) %>%
+RSS_males_cut_regen_spring_final<-RSS_males_cut_regen_spring %>% group_by(cutsize_spring) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
 
-motorised<-c(rep("high",100),rep("low",100))
+cutage<-c(rep("new",100),rep("regen",100))
 
-RSS_males_motor_final<-rbind(RSS_males_motor_high_final,RSS_males_motor_low_final)
-RSS_males_motor_final<-cbind(RSS_males_motor_final,motorised)
+RSS_males_cutagesize_final<-rbind(RSS_males_cut_new_spring_final,RSS_males_cut_regen_spring_final)
+RSS_males_cutagesize_final<-cbind(RSS_males_cutagesize_final,cutage)
+RSS_males_cutagesize_final$lnRSS <- log(RSS_males_cutagesize_final$`50%`)
+RSS_males_cutagesize_final$lnRSS5 <- log(RSS_males_cutagesize_final$`5%`)
+RSS_males_cutagesize_final$lnRSS95 <- log(RSS_males_cutagesize_final$`95%`)
 
-gbears_used_available_final$lntrail_start_s<-scale(gbears_used_available_final$lntrail_start)
-# RSS_males_motor_final$d_trail_m<-exp(RSS_males_motor_final$d_trail_s * attr(gbears_used_available_final$lntrail_start_s, 'scaled:scale') + attr(gbears_used_available_final$lntrail_start_s, 'scaled:center'))
+ggplot(RSS_males_cutagesize_final, aes(x=cutsize_spring, y=lnRSS,fill=cutage,colour=cutage)) +
+  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2) +
+  geom_line()
 
-males_motorised<-ggplot(RSS_males_motor_final, aes(x=d_trail, y=`50%`,fill=motorised,colour=motorised)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  geom_line()+
+
   coord_cartesian(ylim = c(0.5, 5)) +
   theme_bw(base_size = 35)+
   theme(axis.line = element_line(colour = "black"),
