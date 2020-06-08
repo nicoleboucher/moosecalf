@@ -1,10 +1,10 @@
 #Wolf response to silviculture in PGS
 
 # Code for iSSA
-save.image(file='iSSA_wolf_booty.RData')
+save.image(file='iSSA_wolf_final_models.RData')
 
 #load
-load(file='iSSA_wolf_extractedvariables_final.RData')
+load(file='iSSA_wolf_final_models.RData')
 load(file='iSSA_wolf_booty.RData')
 ####################### Getting set up #########################
 
@@ -227,19 +227,19 @@ wolves_ua_sp_start1 <- spTransform(wolves_ua_sp_start,crs(NDVI.rasters))
 wolves_ua_sp_end1 <- spTransform(wolves_ua_sp_end,crs(NDVI.rasters))
 
 #determine NDVI at each point, matched in time to closest 16-day window for NDVI, extracted from start of step
-wolves_vars_start<-list()
+#wolves_vars_start<-list()
+#
+#for(i in 1:nrow(wolves_used_available_final)){
+#pt<-wolves_ua_sp_start1[i,]
+#day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolf point date
+#NDVI.v<-velox(NDVI.rasters.vx$rasterbands[[which(as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),8,4)) == year(pt$Date)&
+#                                          as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),3,0)) %in% day)]],res = res(NDVI.rasters),extent=as.vector(extent(NDVI.rasters)),crs=crs(NDVI.rasters)) # finds the NDVI raster that was found in the day window
+#pt$NDVI<-NDVI.v$extract_points(pt)
+#wolves_vars_start[[i]]<-as.data.frame(pt)
+#print(i)
+#}
 
-for(i in 1:nrow(wolves_used_available_final)){
-pt<-wolves_ua_sp_start1[i,]
-day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolf point date
-NDVI.v<-velox(NDVI.rasters.vx$rasterbands[[which(as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),8,4)) == year(pt$Date)&
-                                          as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),3,0)) %in% day)]],res = res(NDVI.rasters),extent=as.vector(extent(NDVI.rasters)),crs=crs(NDVI.rasters)) # finds the NDVI raster that was found in the day window
-pt$NDVI<-NDVI.v$extract_points(pt)
-wolves_vars_start[[i]]<-as.data.frame(pt)
-print(i)
-}
-
-wolves_vars_start<-bind_rows(wolves_vars_start)
+#wolves_vars_start<-bind_rows(wolves_vars_start)
 
 #determine NDVI at each point, matched in time to closest 16-day window for NDVI, extracted from end of step
 wolves_vars_end<-list()
@@ -516,7 +516,7 @@ rm(water,water.vx)
 ########### save data! ###############
 
 rm(wolves_ua_sp_start, wolves_ua_sp_end,crs,day,i)
-write.csv(wolves_used_available_final, "wolves_used_available_final.csv")
+write.csv(wolves_used_available_final, "wolves_used_available_final1.csv")
 
 save.image(file='iSSA_wolf_extractedvariables_final.RData')
 
@@ -526,7 +526,6 @@ rm(meanNDVI2018.vx,meanNDVI2019.vx,NDVI.rasters.vx,NDVI.v,roaddens.vx,roaddist.v
 ############# Reload data (if failed) #####################
 
 #load data
-backup <- wolves_used_available_final
 wolves_used_available_final<-read.csv("wolves_used_available_final.csv")
 wolves_used_available_final <- wolves_used_available_final[,-1]
 
@@ -555,7 +554,7 @@ wolves_used_available_final$season <- as.factor(wolves_used_available_final$seas
 wolves_used_available_final$Year <- as.factor(wolves_used_available_final$Year)
 
 #make log step length and cosine turn angle
-wolves_used_available_final$lnSL <- log(wolves_used_available_final$sl)
+wolves_used_available_final$lnSL <- log(wolves_used_available_final$sl/1000)
 wolves_used_available_final$cosTA <- cos(wolves_used_available_final$ta)
 
 #log of distance variables
@@ -573,6 +572,9 @@ wolves_used_available_final$ln_end_edgein <- log(wolves_used_available_final$end
 
 wolves_used_available_final$hour <- as.numeric(str_sub(wolves_used_available_final$t2,-8,-7))
 wolves_used_available_final$sinhour <- sin((4*pi*(wolves_used_available_final$hour-3))/24)
+
+#remove weird wolf
+wolves_used_available_final <- wolves_used_available_final[!(wolves_used_available_final$name=="26818a" & wolves_used_available_final$season=="spring"),]
 
 ############### Check for collinearity ####################
 
@@ -664,7 +666,7 @@ base_results_issa<-as.data.frame(cbind(wolf,Year,Season,Model,AIC,Covariates,bet
 base_results_issa$AIC<-as.numeric(as.character(AIC))
 base_results_issa$check <- paste(base_results_issa$wolf, base_results_issa$Year, base_results_issa$Season)
 
-######### Calculate AIC weight ###############
+######### Calculate and Plot AIC weights ###############
 
 #make AIC dataframe
 AIC_results<-base_results_issa[!duplicated(base_results_issa[,c(1:4)]),]
@@ -736,18 +738,12 @@ for (i in 1:length(AIC_results_ordered)){
 AIC_results_ordered <- do.call(rbind, AIC_results_ordered)
 AIC_results_ordered <-cbind(AIC_results_ordered,AIC_weights)
 
-#check levels for Model
-levels(AIC_results_ordered$Model)
-
-################# Plot AIC results #####################
-
 #split data set into list by seasons
 AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("preydiversity","facilitatemovement","anthro","complete"))
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="complete"] <- "Global"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="anthro"] <- "Anthropogenic"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="facilitatemovement"] <- "Movement"
 levels(AIC_results_ordered$Model)[levels(AIC_results_ordered$Model)=="preydiversity"] <- "Prey Diversity"
-levels(AIC_results_ordered$Model)
 
 AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("spring", "earlysum", "latesum","autumn","winter"))
 levels(AIC_results_ordered$Season)[levels(AIC_results_ordered$Season)=="spring"] <- "Spring"
@@ -813,7 +809,6 @@ for(n in 1:ncol(results_males_spring_betas)){
       x<-results_males_spring[results_males_spring$Covariates==covariates_spring[n]&results_males_spring$wolf==wolf_bstrap[i],]
       x2<-x[sample(nrow(x),1),]
       bstrap<-rbind(bstrap,x2)
-      
       median<-median(bstrap$beta)
 
     }
@@ -938,10 +933,10 @@ for(n in 1:ncol(results_males_winter_betas)){
 assign(paste("pop_males_winter"),results_males_winter_betas)
 
 -----------------------------------
-### MOVEMENT BETAS ###
+########## Movement betas ##########
 -----------------------------------
 
-########## Spring movement betas ###########
+### Spring movement betas ###
 
 #make betas data frame
 movement_betas_spring<-cbind(pop_males_spring[,c(grep("lnSL", colnames(pop_males_spring)))])
@@ -977,7 +972,7 @@ betas_movement_spring<-group_by(movement_betas_spring_long,Covariate,Reproductiv
                                                                                          lower = quantile(Beta,0.025),
                                                                                          upper = quantile(Beta,0.975))
 
-########## early summer movement betas ###########
+### early summer movement betas ###
 
 #make betas data frame
 movement_betas_earlysum<-cbind(pop_males_earlysum[,c(grep("lnSL", colnames(pop_males_earlysum)))])
@@ -1002,8 +997,6 @@ movement_betas_earlysum_long$Covariate<-replace(movement_betas_earlysum_long$Cov
 
 #make covariate column into factor
 movement_betas_earlysum_long$Covariate<-as.factor(movement_betas_earlysum_long$Covariate)
-levels(movement_betas_earlysum_long$Covariate)
-
 movement_fixed_earlysum<-movement_betas_earlysum_long[movement_betas_earlysum_long$Covariate=="lnSL"|movement_betas_earlysum_long$Covariate=="lnSL:sinhour"|movement_betas_earlysum_long$Covariate=="lnSL:roaddens"|movement_betas_earlysum_long$Covariate=="lnSL:roaddist"|movement_betas_earlysum_long$Covariate=="lnSL:newcut"|movement_betas_earlysum_long$Covariate=="lnSL:regencut",]
 movement_fixed_earlysum$season <- "earlysum"
 
@@ -1694,8 +1687,6 @@ Figure4
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Figure 4.tiff", plot=Figure4, units="in", width=14, height=12, dpi=600, compression = 'lzw')
 
-
-
 -----------------------------------
 ########### STEP LENGTH RESULTS - ROAD DIST BY CUTAGE ##################
 -----------------------------------
@@ -1768,8 +1759,8 @@ for(i in 1:length(d_road_spring)){
                                                 (slength_lnslroaddist_spring)*d_road_spring[i])
   y_slength_road_new_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
                                               slength_spring +
-                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_spring*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_spring*1)+(slength_lnslregencut_spring*0)+ 
+                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslroaddens_spring*mean(wolves_used_available_final$start_roaddens))+(slength_lnslnewcut_spring*1)+(slength_lnslregencut_spring*0) + 
                                                 (slength_lnslroaddist_spring)*d_road_spring[i])
 
   SL_males_road_regen_spring<-as.data.frame(cbind(SL_males_road_regen_spring,y_slength_road_regen_spring))
@@ -2154,7 +2145,7 @@ names(SL_males_road_new_final_spring)[1] <- "d_road"
 SL_males_road_new_earlysum<-melt(average_new_earlysum[c(1:200),])
 d_road_earlysum2<-rep(d_road_earlysum,each=200)
 
-SL_males_road_new_earlysum<-as.data.frame(cbind(SL_males_road_new_earlysum,d_road_earlysum))
+SL_males_road_new_earlysum<-as.data.frame(cbind(SL_males_road_new_earlysum,d_road_earlysum2))
 
 SL_males_road_new_final_earlysum<-SL_males_road_new_earlysum %>% group_by(d_road_earlysum2) %>%
   summarise(`5%`=quantile(value, probs=0.025),
@@ -2220,8 +2211,8 @@ levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="
 levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="winter"] <- "Winter"
 
 males_roaddist_new <-ggplot(SL_road_males_new_final, aes(x=d_road_exp, y=`50%`,fill=season,colour=season)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()+
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   labs(x= "Distance to road (m)",y="Step length (km/h)")
 
 males_roaddist_new
@@ -2241,6 +2232,7 @@ legend <- get_legend(
   males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12))
 )
 distroad <- plot_grid(prow, legend, rel_widths = c(3, .4))
+distroad
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\distance to road.tiff", plot=distroad, units="in", width=17, height=8, dpi=600, compression = 'lzw')
 
 
@@ -2249,65 +2241,43 @@ ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\dis
 -----------------------------------
 
 ## RSS - MALES
-droad_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist",5]))
-motor_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist:end_cutageclass_new1",5]))
-nmotor_beta<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="lntrail:logit_pnmotor",5]))
-levels(results_males_spring$Covariates)
-mean_SL<-mean(gbears_used_available_final[gbears_used_available_final$used==1,11])
-
-d_trail<-seq(2*mean_SL+1,1000,length.out = 100)
-motor_high<-quantile(gbears_used_available_final$logit_pmotor,0.75)
-motor_low<-quantile(gbears_used_available_final$logit_pmotor,0.25)
-
-nmotor_high<-quantile(gbears_used_available_final$logit_pnmotor,0.75)
-nmotor_low<-quantile(gbears_used_available_final$logit_pnmotor,0.25)
-
-RSS_males_motor_high<-unique(paste(results_males$bear,results_males$Year))
-RSS_males_motor_low<-unique(paste(results_males$bear,results_males$Year))
-RSS_males_nmotor_high<-unique(paste(results_males$bear,results_males$Year))
-RSS_males_nmotor_low<-unique(paste(results_males$bear,results_males$Year))
+cutsize_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="end_sizeha",5]))
+newcut_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="end_cutageclass_new1:end_sizeha",5]))
+regencut_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="end_cutageclass_regen1:end_sizeha",5]))
+mean_SL_spring<-mean(wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,11])
+cutsize_spring<-seq(0,14.97875,length.out = 100)
+RSS_males_cut_new_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+RSS_males_cut_regen_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
 
 ##create responses for each bear
-d_trail[100]/(d_trail[100]-(2*mean_SL))
+for(i in 1:length(cutsize_spring)){
+  RSS_new_spring<-(cutsize_spring[i]*(cutsize_beta_spring+newcut_beta_spring))
+  RSS_regen_spring<-(cutsize_spring[i]*(cutsize_beta_spring+regencut_beta_spring))
 
-for(i in 1:length(d_trail)){
-  RSS_motor_high<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(motor_beta*motor_high))
-   RSS_motor_low<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(motor_beta*motor_low))
-   RSS_nmotor_high<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(nmotor_beta*nmotor_high))
-RSS_nmotor_low<-(d_trail[i]/(d_trail[i]-(2*mean_SL)))^(dtrail_beta+(nmotor_beta*nmotor_low))
-
- RSS_males_motor_high<-as.data.frame(cbind(RSS_males_motor_high,RSS_motor_high))
- RSS_males_motor_low<-as.data.frame(cbind(RSS_males_motor_low,RSS_motor_low))
- RSS_males_nmotor_high<-as.data.frame(cbind(RSS_males_nmotor_high,RSS_nmotor_high))
- RSS_males_nmotor_low<-as.data.frame(cbind(RSS_males_nmotor_low,RSS_nmotor_low))
+  RSS_males_cut_new_spring<-as.data.frame(cbind(RSS_males_cut_new_spring,RSS_new_spring))
+  RSS_males_cut_regen_spring<-as.data.frame(cbind(RSS_males_cut_regen_spring,RSS_regen_spring))
 }
 
-  RSS_males_motor_high[,2]<-as.numeric(as.character(RSS_males_motor_high[,2]))
-  RSS_males_motor_low[,2]<-as.numeric(as.character(RSS_males_motor_low[,2]))
-  RSS_males_nmotor_high[,2]<-as.numeric(as.character(RSS_males_nmotor_high[,2]))
-  RSS_males_nmotor_high[,2]<-as.numeric(as.character(RSS_males_nmotor_high[,2]))
+RSS_males_cut_new_spring[,2]<-as.numeric(as.character(RSS_males_cut_new_spring[,2]))
+RSS_males_cut_regen_spring[,2]<-as.numeric(as.character(RSS_males_cut_regen_spring[,2]))
 
-  
-average_high<-data.frame(matrix(NA, nrow = 200, ncol = 100))
+average_new<-data.frame(matrix(NA, nrow = 200, ncol = 100))
 b.boot<-1:200
 for(i in 1:length(b.boot)){
-  bear_bstrap<-as.vector(sample(unique(RSS_males_motor_high$RSS_males_motor_high),18,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_spring$RSS_males_cut_new_spring),18,replace=TRUE))
   bstrap<-data.frame()
-  for (j in 1:length(bear_bstrap)){
-    x<-RSS_males_motor_high[RSS_males_motor_high$RSS_males_motor_high==bear_bstrap[j],]
+  for (j in 1:length(wolf_bstrap)){
+    x<-RSS_males_cut_new_spring[RSS_males_cut_new_spring$RSS_males_cut_new_spring==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
     mean<-colMeans(bstrap[,2:101])
-    average_high[i,]<-mean
+    average_new[i,]<-mean
   }
 }
 
-RSS_males_motor_high2<-melt(average_high[c(1:200),])
+RSS_males_cut_new_spring2<-melt(average_new[c(1:200),])
 
-
-d_trail<-rep(d_trail,each=200)
-
-RSS_males_motor_high<-cbind(RSS_males_motor_high2,d_trail)
+RSS_males_cut_new_spring<-cbind(RSS_males_cut_new_spring2,cutsize_spring)
 
 RSS_males_motor_high_final<-RSS_males_motor_high %>% group_by(d_trail) %>%
   summarise(`5%`=quantile(value, probs=0.025),
