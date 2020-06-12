@@ -2751,7 +2751,7 @@ max(wolves_used_available_final$start_roaddens)
 ## RSS - MALES
 road_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist",7]))
 mean_SL_spring<-mean(wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,11])
-d_road<-seq(2*mean_SL_spring+1,10000,length.out = 1000)
+d_road<-seq(min(wolves_used_available_final_spring$ln_end_roaddist), max(wolves_used_available_final_spring$ln_end_roaddist),length.out = 1000)
 RSS_males_road_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
 
 ##create responses for each bear
@@ -2762,8 +2762,8 @@ for(i in 1:length(d_road)){
 
 RSS_males_road_spring[,2]<-as.numeric(as.character(RSS_males_road_spring[,2]))
 
-average_new<-data.frame(matrix(NA, nrow = 2000, ncol = 1000))
-b.boot<-1:2000
+average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
+b.boot<-1:200
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(RSS_males_road_spring$RSS_males_road_spring),8,replace=TRUE))
   bstrap<-data.frame()
@@ -2776,12 +2776,10 @@ for(i in 1:length(b.boot)){
   }
 }
 
-RSS_males_cut_new_spring2<-melt(average_new[c(1:2000),])
+RSS_males_cut_new_spring2<-melt(average_new[c(1:200),])
 
-d_road<-rep(d_road,each=1000)
-
+d_road<-rep(d_road,each=200)
 RSS_males_cut_new_spring<-cbind(RSS_males_cut_new_spring2,d_road)
-
 
 RSS_males_cut_new_spring_final<-RSS_males_cut_new_spring %>% group_by(d_road) %>%
   summarise(`5%`=quantile(value, probs=0.025),
@@ -2793,57 +2791,13 @@ RSS_males_cut_new_spring_final<-RSS_males_cut_new_spring %>% group_by(d_road) %>
 RSS_males_cut_new_spring_final$lnRSS <- log(RSS_males_cut_new_spring_final$`50%`)
 RSS_males_cut_new_spring_final$lnRSS5 <- log(RSS_males_cut_new_spring_final$`5%`)
 RSS_males_cut_new_spring_final$lnRSS95 <- log(RSS_males_cut_new_spring_final$`95%`)
+RSS_males_cut_new_spring_final$d_road_exp <- exp(RSS_males_cut_new_spring_final$d_road)
 
-RSS_males_cut_new_spring_final$lnRSS
-
-ggplot(RSS_males_cut_new_spring_final, aes(x=d_road, y=lnRSS)) +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2) +
-  geom_line()
-
-##low motorised
-average_regen<-data.frame(matrix(NA, nrow = 2000, ncol = 1000))
-b.boot<-1:2000
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_spring$RSS_males_cut_regen_spring),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_spring[RSS_males_cut_regen_spring$RSS_males_cut_regen_spring==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    median<-apply(bstrap[,2:1001], 2, FUN = median)
-    average_regen[i,]<-median
-  }
-}
-
-RSS_males_cut_regen_spring2<-melt(average_regen[c(1:2000),])
-
-RSS_males_cut_regen_spring<-cbind(RSS_males_cut_regen_spring2,cutsize_spring)
-
-RSS_males_cut_regen_spring_final<-RSS_males_cut_regen_spring %>% group_by(cutsize_spring) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-
-cutage<-c(rep("new",1000),rep("regen",1000))
-
-RSS_males_cutagesize_final<-rbind(RSS_males_cut_new_spring_final,RSS_males_cut_regen_spring_final)
-RSS_males_cutagesize_final<-cbind(RSS_males_cutagesize_final,cutage)
-RSS_males_cutagesize_final$lnRSS <- log(RSS_males_cutagesize_final$`50%`)
-RSS_males_cutagesize_final$lnRSS5 <- log(RSS_males_cutagesize_final$`5%`)
-RSS_males_cutagesize_final$lnRSS95 <- log(RSS_males_cutagesize_final$`95%`)
-
-ggplot(RSS_males_cutagesize_final, aes(x=cutsize_spring, y=`50%`,fill=cutage,colour=cutage)) +
+ggplot(RSS_males_cut_new_spring_final, aes(x=d_road_exp, y=`50%`)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()
 
 
-  
-  
-  
-  
-  
   
   
   
@@ -2866,8 +2820,8 @@ ggplot(RSS_males_cutagesize_final, aes(x=cutsize_spring, y=`50%`,fill=cutage,col
 roaddist_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist",7]))
 newcut_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
 regencut_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_latesum<-mean(wolves_used_available_final_latesum[wolves_used_available_final_latesum$used==1,11])
-d_road_latesum<-seq(2*mean_SL_latesum+1,10000,length.out = 1000)
+mean_SL_latesum<-mean(wolves_used_available_final_latesum[wolves_used_available_final_latesum$used==1,67])
+d_road_latesum<-seq(min(wolves_used_available_final_latesum$ln_end_roaddist), max(wolves_used_available_final_latesum$ln_end_roaddist),length.out = 1000)
 RSS_males_cut_new_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
 RSS_males_cut_regen_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
 
@@ -2883,8 +2837,8 @@ for(i in 1:length(d_road_latesum)){
 RSS_males_cut_new_latesum[,2]<-as.numeric(as.character(RSS_males_cut_new_latesum[,2]))
 RSS_males_cut_regen_latesum[,2]<-as.numeric(as.character(RSS_males_cut_regen_latesum[,2]))
 
-average_new<-data.frame(matrix(NA, nrow = 2000, ncol = 1000))
-b.boot<-1:2000
+average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
+b.boot<-1:200
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_latesum$RSS_males_cut_new_latesum),8,replace=TRUE))
   bstrap<-data.frame()
@@ -2897,21 +2851,22 @@ for(i in 1:length(b.boot)){
   }
 }
 
-RSS_males_cut_new_latesum2<-melt(average_new[c(1:2000),])
-d_road_latesum<-rep(d_road_latesum,each=1000)
+RSS_males_cut_new_latesum2<-melt(average_new[c(1:200),])
+d_road_latesum<-rep(d_road_latesum,each=200)
 
 RSS_males_cut_new_latesum<-cbind(RSS_males_cut_new_latesum2,d_road_latesum)
 
 RSS_males_cut_new_latesum_final<-RSS_males_cut_new_latesum %>% group_by(d_road_latesum) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
+  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
+            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
+            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
             avg=median(value),
             n=n())
 
 ##low motorised
-average_regen<-data.frame(matrix(NA, nrow = 2000, ncol = 1000))
-b.boot<-1:2000
+
+average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
+b.boot<-1:200
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_latesum$RSS_males_cut_regen_latesum),8,replace=TRUE))
   bstrap<-data.frame()
@@ -2924,15 +2879,15 @@ for(i in 1:length(b.boot)){
   }
 }
 
-RSS_males_cut_regen_latesum2<-melt(average_regen[c(1:2000),])
+RSS_males_cut_regen_latesum2<-melt(average_regen[c(1:200),])
 
 RSS_males_cut_regen_latesum<-cbind(RSS_males_cut_regen_latesum2,d_road_latesum)
 
 RSS_males_cut_regen_latesum_final<-RSS_males_cut_regen_latesum %>% group_by(d_road_latesum) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
+  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
+            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
+            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
+            avg=median(value),
             n=n())
 
 cutage<-c(rep("new",1000),rep("regen",1000))
@@ -2943,10 +2898,16 @@ RSS_males_cutagesize_final$lnRSS <- log(RSS_males_cutagesize_final$`50%`)
 RSS_males_cutagesize_final$lnRSS5 <- log(RSS_males_cutagesize_final$`5%`)
 RSS_males_cutagesize_final$lnRSS95 <- log(RSS_males_cutagesize_final$`95%`)
 RSS_males_cutagesize_final$lnavg <- log(RSS_males_cutagesize_final$avg)
+RSS_males_cutagesize_final$d_road_latesum_exp <- exp(RSS_males_cutagesize_final$d_road_latesum)
 
 ggplot(RSS_males_cutagesize_final, aes(x=d_road_latesum, y=lnRSS,fill=cutage,colour=cutage)) +
   geom_line() +
   geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)
+
+
+ggplot(RSS_males_cutagesize_final, aes(x=d_road_latesum_exp, y=lnRSS,fill=cutage,colour=cutage)) +
+  geom_line() +
+  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
 
 
 
