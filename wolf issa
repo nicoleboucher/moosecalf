@@ -1,7 +1,7 @@
 #Wolf response to silviculture in PGS
 
 # Code for iSSA
-save.image(file='iSSA_wolf_final_models2.RData')
+save.image(file='iSSA_wolf_final_all.RData')
 
 #load
 load(file='iSSA_wolf_final_models.RData')
@@ -2054,7 +2054,10 @@ names(SL_road_males_regen_final)[7] <- "Season"
 males_roaddist_regen <-ggplot(SL_road_males_regen_final, aes(x=d_road_exp, y=`50%`,fill=Season,colour=Season)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()+
-  labs(x= "Distance to road (m)",y="Step length (km/h)")+ylim(0,2.5)
+  labs(x= "Distance to road (m)",y="Step length (km/h)")+ylim(0,2.5)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 males_roaddist_regen
 
 
@@ -2224,7 +2227,10 @@ levels(SL_road_males_new_final$season)[levels(SL_road_males_new_final$season)=="
 males_roaddist_new <-ggplot(SL_road_males_new_final, aes(x=d_road_exp, y=`50%`,fill=season,colour=season)) +
   geom_line()+
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  labs(x= "Distance to road (m)",y="Step length (km/h)")+ylim(0,2.5)
+  labs(x= "Distance to road (m)",y="Step length (km/h)")+ylim(0,2.5)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 
 males_roaddist_new
 
@@ -2232,8 +2238,8 @@ prow <- plot_grid(
   males_roaddist_new + theme(legend.position="none"),
   males_roaddist_regen + theme(legend.position="none"),
   align = 'vh',
-  labels = c("A", "B"),
-  hjust = -4,
+  labels = c("     A) New cut", "B) Regenerating cut"),
+  hjust=-0.5,
   vjust=2,
   nrow = 1
 )
@@ -2241,7 +2247,7 @@ prow
 
 legend <- get_legend(
   # create some space to the left of the legend
-  males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12))
+  males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=20))
 )
 distroad <- plot_grid(prow, legend, rel_widths = c(3, .4))
 distroad
@@ -2539,7 +2545,6 @@ names(SL_males_roaddens_regen_final_winter)[1] <- "d_roaddens"
 
 SL_roaddens_males_regen_final<-rbind(SL_males_roaddens_regen_final_spring,SL_males_roaddens_regen_final_earlysum,SL_males_roaddens_regen_final_latesum,SL_males_roaddens_regen_final_autumn,SL_males_roaddens_regen_final_winter)
 SL_roaddens_males_regen_final$season <- factor(SL_roaddens_males_regen_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
-SL_roaddens_males_regen_final$d_roaddens_exp <-exp(SL_roaddens_males_regen_final$d_road)
 levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="spring"] <- "Spring"
 levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="earlysum"] <- "Early summer"
 levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="latesum"] <- "Late summer"
@@ -2549,7 +2554,10 @@ names(SL_roaddens_males_regen_final)[7] <- "Season"
 males_roaddens_regen <-ggplot(SL_roaddens_males_regen_final, aes(x=d_roaddens, y=`50%`,fill=Season,colour=Season)) +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line()+
-  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)
+  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 males_roaddens_regen
 
 ###### New #############
@@ -2708,7 +2716,6 @@ names(SL_males_roaddens_new_final_winter)[1] <- "d_roaddens"
 
 SL_roaddens_males_new_final<-rbind(SL_males_roaddens_new_final_spring,SL_males_roaddens_new_final_earlysum,SL_males_roaddens_new_final_latesum,SL_males_roaddens_new_final_autumn,SL_males_roaddens_new_final_winter)
 SL_roaddens_males_new_final$season <- factor(SL_roaddens_males_new_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
-SL_roaddens_males_new_final$d_roaddens_exp <-exp(SL_roaddens_males_new_final$d_road)
 levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="spring"] <- "Spring"
 levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="earlysum"] <- "Early summer"
 levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="latesum"] <- "Late summer"
@@ -2718,7 +2725,10 @@ levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$se
 males_roaddens_new <-ggplot(SL_roaddens_males_new_final, aes(x=d_roaddens, y=`50%`,fill=season,colour=season)) +
   geom_line()+
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)
+  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 
 males_roaddens_new
 
@@ -2726,8 +2736,8 @@ prow2 <- plot_grid(
   males_roaddens_new + theme(legend.position="none"),
   males_roaddens_regen + theme(legend.position="none"),
   align = 'vh',
-  labels = c("C", "D"),
-  hjust = -4,
+  labels = c("     C) New cut", "D) Regenerating cut"),
+  hjust=-0.5,
   vjust=2,
   nrow = 1
 )
@@ -2735,13 +2745,11 @@ prow2
 
 legend2 <- get_legend(
   # create some space to the left of the legend
-  males_roaddens_regen + theme(legend.box.margin = margin(0, 0, 0, 12))
+  males_roaddens_regen + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=18))
 )
-roaddensplot <- plot_grid(prow,legend2,prow2,nrow=2,ncol=2, rel_widths = c(3, .4,3))
-roaddensplot
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length.tiff", plot=roaddensplot, units="in", width=14, height=8, dpi=600, compression = 'lzw')
-
-max(wolves_used_available_final$start_roaddens)
+steplengthplot <- plot_grid(prow,legend2,prow2,nrow=2,ncol=2, rel_widths = c(3, .4,3))
+steplengthplot
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length.tiff", plot=steplengthplot, units="in", width=16, height=8, dpi=600, compression = 'lzw')
 
 -----------------------------------
 ########### RSS CALCULATIONS ##############
@@ -3278,21 +3286,27 @@ colnames(RSS_males_newcut_all_final)[11] <- "Distance to road (m)"
 
 newRSS <- ggplot(RSS_males_newcut_all_final, aes(x=`Distance to road (m)`, y=lnRSS,fill=Season,colour=Season)) +
   geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)
+  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 
 RSS_males_regencut_all_final <- RSS_males_cutagesize_all_final[RSS_males_cutagesize_all_final$cutage=="regen",]
 colnames(RSS_males_regencut_all_final)[11] <- "Distance to road (m)"
 
 regenRSS <- ggplot(RSS_males_regencut_all_final, aes(x=`Distance to road (m)`, y=lnRSS,fill=Season,colour=Season)) +
   geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)
+  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))
 
 RSSplots <- plot_grid(
   newRSS + theme(legend.position="none"),
   regenRSS + theme(legend.position="none"),
   align = 'vh',
-  labels = c("A", "B"),
-  hjust = -4,
+  labels = c("     A) New cut", "B) Regenerating cut"),
+  hjust = -0.5,
   vjust=2,
   nrow = 1
 )
@@ -3300,8 +3314,8 @@ RSSplots
 
 RSSlegend <- get_legend(
   # create some space to the left of the legend
-  newRSS + theme(legend.box.margin = margin(0, 0, 0, 12))
+  newRSS + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=18))
 )
 RSSplot <- plot_grid(RSSplots,RSSlegend,rel_widths = c(3, .4))
 RSSplot
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\RSS.tiff", plot=RSSplot, units="in", width=14, height=8, dpi=600, compression = 'lzw')
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\RSS.tiff", plot=RSSplot, units="in", width=16, height=8, dpi=600, compression = 'lzw')
