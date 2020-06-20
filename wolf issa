@@ -191,13 +191,28 @@ p_earlysumsl <- ggplot(usedearlysum,aes(sl, fill = factor(id))) + geom_density(a
 p_latesumsl <- ggplot(usedlatesum,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Late summer", size = 8)
 p_autumnsl <- ggplot(usedautumn,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Autumn", size = 8)
 p_wintersl <- ggplot(usedwinter,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Winter", size = 8)
-p_allsl <- ggplot(usedall,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")
+p_allsl <- ggplot(usedall,aes(sl, fill = factor(season))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")
 p_allsl
 plot_grid(p_springsl,p_earlysumsl,p_latesumsl,p_autumnsl,p_wintersl,ncol=3)
 
 usedall$hour <- hour(usedall$t1)
 plot(usedall[usedall$season=="spring",]$hour, usedall[usedall$season=="spring",]$sl)
+se <- function(x) sqrt(var(x)/length(x))
 
+mean(usedspring$sl)
+se(usedspring$sl)
+
+mean(usedearlysum$sl)
+se(usedearlysum$sl)
+
+mean(usedlatesum$sl)
+se(usedlatesum$sl)
+
+mean(usedautumn$sl)
+se(usedautumn$sl)
+
+mean(usedwinter$sl)
+se(usedwinter$sl)
 ####################### Spatial preparation and covariate extraction #########################
 
 #making steps into spatialpointsdataframe (from end points)
