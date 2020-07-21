@@ -6,6 +6,8 @@ save.image(file='iSSA_wolf_2seasons_final.RData')
 #load
 load(file='iSSA_wolf_2seasons_bootstrap.RData')
 load(file='iSSA_wolf_extractedvariables_final_2seasons.RData')
+
+load(file='iSSA_wolf_extractedvariables_test_2seasons.RData')
 ####################### Getting set up #########################
 
 ### LOAD PACKAGES ###
