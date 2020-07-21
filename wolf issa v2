@@ -1,11 +1,11 @@
 #Wolf response to silviculture in PGS
 
 # Code for iSSA
-save.image(file='iSSA_wolf_2seasons_bootstrap.RData')
+save.image(file='iSSA_wolf_2seasons_final.RData')
 
 #load
 load(file='iSSA_wolf_2seasons_bootstrap.RData')
-load(file='iSSA_wolf_booty.RData')
+load(file='iSSA_wolf_extractedvariables_final_2seasons.RData')
 ####################### Getting set up #########################
 
 ### LOAD PACKAGES ###
@@ -15,7 +15,7 @@ lapply(c("forcats","viridis","stringr","fastDummies","car","matrixStats","ppcor"
 setwd("D:/OneDrive/Documents/Academic/PhD/Publications/iSSA/Data/")
 
 ##set seed
-set.seed(1)
+set.seed(58)
 
 ####################### Making available tracks for iSSA #########################
 
@@ -114,40 +114,19 @@ wolves_used_available_final$Date <- date(wolves_used_available_final$t1)
 wolves_used_available_final$julian.day<-yday(wolves_used_available_final$Date)
 
 #clean erroneous step lengths
-cleansl <- wolves_used_available_final[wolves_used_available_final$sl >= 20000,]
-cleansl$clean <- as.factor(paste(cleansl$id, cleansl$year, cleansl$season, cleansl$burst, cleansl$stepid))
-cleansl_rm <- unique(cleansl$clean)
-wolves_used_available_final$clean <- as.factor(paste(wolves_used_available_final$id, wolves_used_available_final$year, wolves_used_available_final$season, wolves_used_available_final$burst, wolves_used_available_final$stepid))
-wolves_used_available_final <- wolves_used_available_final[!wolves_used_available_final$clean %in% cleansl_rm,]
-rm(cleansl,cleansl_rm)
-wolves_used_available_final <- wolves_used_available_final[,-19]
+#cleansl <- wolves_used_available_final[wolves_used_available_final$sl >= 20000,]
+#cleansl$clean <- as.factor(paste(cleansl$id, cleansl$year, cleansl$season, cleansl$burst, cleansl$stepid))
+#cleansl_rm <- unique(cleansl$clean)
+#wolves_used_available_final$clean <- as.factor(paste(wolves_used_available_final$id, wolves_used_available_final$year, wolves_used_available_final$season, wolves_used_available_final$burst, wolves_used_available_final$stepid))
+#wolves_used_available_final <- wolves_used_available_final[!wolves_used_available_final$clean %in% cleansl_rm,]
+#rm(cleansl,cleansl_rm)
+#wolves_used_available_final <- wolves_used_available_final[,-19]
 
 #plot density plot CITE
-usedspring <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="spring",]
-usedearlysum <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="earlysum",]
-usedlatesum <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="latesum",]
-usedautumn <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="autumn",]
-usedwinter <- wolves_used_available_final[wolves_used_available_final$case=="TRUE"&wolves_used_available_final$season=="winter",]
 usedall <- wolves_used_available_final[wolves_used_available_final$case=="TRUE",]
-
-p_springsl <- ggplot(usedspring,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4) + labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Spring", size = 8)
-p_earlysumsl <- ggplot(usedearlysum,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Early summer", size = 8)
-p_latesumsl <- ggplot(usedlatesum,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Late summer", size = 8)
-p_autumnsl <- ggplot(usedautumn,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Autumn", size = 8)
-p_wintersl <- ggplot(usedwinter,aes(sl, fill = factor(id))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")+ annotate("text", x = 750, y = 0.003, label = "Winter", size = 8)
 p_allsl <- ggplot(usedall,aes(sl, fill = factor(season))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")
 p_allsl
-plot_grid(p_springsl,p_earlysumsl,p_latesumsl,p_autumnsl,p_wintersl,ncol=3)
-
-usedall$hour <- hour(usedall$t1)
-plot(usedall[usedall$season=="spring",]$hour, usedall[usedall$season=="spring",]$sl)
-se <- function(x) sqrt(var(x)/length(x))
-
-mean(usedspring$sl)
-se(usedspring$sl)
-
-mean(usedwinter$sl)
-se(usedwinter$sl)
+rm(usedall)
 ####################### Spatial preparation and covariate extraction #########################
 
 #making steps into spatialpointsdataframe (from end points)
@@ -156,7 +135,6 @@ wolves_ua_sp_start <- SpatialPointsDataFrame(wolves_used_available_final[,5:6],
                                              wolves_used_available_final, proj4string=crs)
 wolves_ua_sp_end <- SpatialPointsDataFrame(wolves_used_available_final[,7:8],
                                            wolves_used_available_final, proj4string=crs)
-backup <- wolves_used_available_final
 
 ############### current NDVI ##################
 
@@ -359,7 +337,7 @@ edgein2018.vx <- velox(edgein2018)
 edgein2019.vx <- velox(edgein2019)
 
 #extract at start of step
-wolves_used_available_final$start_edgein1 <- if (wolves_ua_sp_start$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_start)
+wolves_used_available_final$start_edgein <- if (wolves_ua_sp_start$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_start)
 } else if (wolves_ua_sp_start$year == "2019"){edgein2019.vx$extract_points(wolves_ua_sp_start)
 } else if (wolves_used_available_final$year == "2020"){edgein2019.vx$extract_points(wolves_ua_sp_start) #change when 2020 cuts available
       } else (print("NA"))
@@ -389,7 +367,7 @@ edgeout2018.vx <- velox(edgeout2018)
 edgeout2019.vx <- velox(edgeout2019)
 
 #extract at start of step
-wolves_used_available_final$start_edgeout2 <- if (wolves_ua_sp_start$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_start)
+wolves_used_available_final$start_edgeout <- if (wolves_ua_sp_start$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_start)
 } else if (wolves_ua_sp_start$year == "2019"){edgeout2019.vx$extract_points(wolves_ua_sp_start)
 } else if (wolves_used_available_final$year == "2020"){edgeout2019.vx$extract_points(wolves_ua_sp_start) #change when 2020 cuts available
       } else (print("NA"))
@@ -422,12 +400,14 @@ rm(water,water.vx)
 ########### save data! ###############
 
 rm(wolves_ua_sp_start, wolves_ua_sp_end,crs,day,i)
-write.csv(wolves_used_available_final, "wolves_used_available_final1.csv")
+write.csv(wolves_used_available_final, "wolves_used_available_final2.csv")
 
-save.image(file='iSSA_wolf_extractedvariables_final_2seasons.RData')
 
 rm(aspect.vx, cut2018clean,cut2019clean,edgein2018.vx,edgein2019.vx,edgeout2018.vx,edgeout2019.vx, elev.vx,meanNDVI2017.vx)
 rm(meanNDVI2018.vx,meanNDVI2019.vx,NDVI.rasters.vx,NDVI.v,roaddens.vx,roaddist.vx,slope.vx,VRI.vx,water.vx)
+
+
+save.image(file='iSSA_wolf_extractedvariables_test_2seasons.RData')
 
 ############# Reload data (if failed) #####################
 
@@ -470,7 +450,6 @@ wolves_used_available_final$ln_end_water <- log(wolves_used_available_final$end_
 wolves_used_available_final$ln_start_water <- log(wolves_used_available_final$start_water+0.1)
 wolves_used_available_final$ln_start_roaddist <- log(wolves_used_available_final$start_roaddist+0.1)
 wolves_used_available_final$ln_end_roaddist <- log(wolves_used_available_final$end_roaddist+0.1)
-wolves_used_available_final$end_aspect <- round(wolves_used_available_final$end_aspect)
 wolves_used_available_final$end_sizeha <- wolves_used_available_final$end_sizeha*0.01
 wolves_used_available_final$start_sizeha <- wolves_used_available_final$start_sizeha*0.01
 wolves_used_available_final$end_edgein <- wolves_used_available_final$end_edgein/1000
@@ -690,11 +669,11 @@ AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("Sum
 
 AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, width=2) + 
   geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 1,
-               outlier.shape = NA)+ scale_fill_grey()+labs(y="AIC weights")+
+               outlier.shape = NA)+scale_fill_grey()+labs(y="AIC weights")+
   theme_bw(base_size = 20) +
   theme(axis.title = element_text(size=25),
-        axis.text.x = element_text(size=18, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"),
+        axis.text.x = element_text(size=20, colour = "black"),
+        axis.text.y = element_text(size=20, colour = "black"),
         axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
@@ -710,7 +689,7 @@ AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, 
   guides(fill=guide_legend(ncol=1))
 AIC_distributions
 
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\AIC_Weights.tiff", units="in", width=12, height=8, dpi=300, compression = 'lzw')
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\AIC_Weights.tiff", units="in", width=14, height=8, dpi=300, compression = 'lzw')
 
 ---------------------------------------------------
 ########## Beta Coefficient Bootstrapping #########
@@ -803,12 +782,12 @@ levels(movement_betas_summer_long$Covariate)
 
 #replace covariate names
 movement_betas_summer_long$Covariate<-as.character(movement_betas_summer_long$Covariate)
-movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.ln_start_roaddist","lnSL:ln(Road dist)") #replaces text
+movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.ln_start_roaddist","lnSL:Road dist") #replaces text
 movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.sinhour","lnSL:Sin(hour)") #replaces text
-movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_new","lnSL:New cut") #replaces text
-movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_new.start_sizeha","lnSL:New cut:Cut size") #replaces text
+movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_new","lnSL:New Cut") #replaces text
+movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_new.start_sizeha","lnSL:New Cut:Cut size") #replaces text
 movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_regen","lnSL:Regenerating cut") #replaces text
-movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_regen.start_sizeha","lnSL:Regenerating cut:Cut size") #replaces text
+movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_cutageclass_regen.start_sizeha","lnSL:Regenerating Cut:Cut size") #replaces text
 movement_betas_summer_long$Covariate<-replace(movement_betas_summer_long$Covariate,movement_betas_summer_long$Covariate=="lnSL.start_roaddens","lnSL:Road density") #replaces text
 
 #make covariate column into factor
@@ -833,12 +812,12 @@ levels(movement_betas_winter_long$Covariate)
 
 #replace covariate names
 movement_betas_winter_long$Covariate<-as.character(movement_betas_winter_long$Covariate)
-movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.ln_start_roaddist","lnSL:ln(Road dist)") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.ln_start_roaddist","lnSL:Road dist") #replaces text
 movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.sinhour","lnSL:Sin(hour)") #replaces text
 movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_new","lnSL:New Cut") #replaces text
-movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_new.start_sizeha","lnSL:New cut:Cut size") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_new.start_sizeha","lnSL:New Cut:Cut size") #replaces text
 movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_regen","lnSL:Regenerating cut") #replaces text
-movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_regen.start_sizeha","lnSL:Regenerating cut:Cut size") #replaces text
+movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_cutageclass_regen.start_sizeha","lnSL:Regenerating Cut:Cut size") #replaces text
 movement_betas_winter_long$Covariate<-replace(movement_betas_winter_long$Covariate,movement_betas_winter_long$Covariate=="lnSL.start_roaddens","lnSL:Road density") #replaces text
 
 #make covariate column into factor
@@ -862,11 +841,7 @@ movement_annual
 betas_movement<-group_by(movement_fixed_betas,Season,Covariate) %>% summarise(median = median(Beta),
                                                                                          lower = quantile(Beta,0.025),
                                                                                          upper = quantile(Beta,0.975))
-betas_movement
-betas_movement$median <- round(betas_movement$median, digits=3)
-betas_movement$lower <- round(betas_movement$lower, digits=3)
-betas_movement$upper <- round(betas_movement$upper, digits=3)
-write.table(betas_movement, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\betas_movement.txt", sep = ",", quote = FALSE, row.names = F)
+write.table(betas_movement, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\movement betas.txt", sep = ",", quote = FALSE, row.names = F)
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\movement betas.tiff", plot=movement_annual, units="in", width=16, height=8, dpi=600, compression = 'lzw')
 
@@ -915,6 +890,12 @@ habitat_betas_summer_long$Season <- "Summer"
 habitat_fixed_landcover_summer<-habitat_betas_summer_long[habitat_betas_summer_long$Covariate=="Coniferous"|habitat_betas_summer_long$Covariate=="Deciduous"|habitat_betas_summer_long$Covariate=="Mixed forest"|habitat_betas_summer_long$Covariate=="Pine"|habitat_betas_summer_long$Covariate=="ln(Water)"|habitat_betas_summer_long$Covariate=="NDVI",]
 habitat_fixed_roads_summer<-habitat_betas_summer_long[habitat_betas_summer_long$Covariate=="ln(Road dist)"|habitat_betas_summer_long$Covariate=="Road density"|habitat_betas_summer_long$Covariate=="Road density:sin(hour)",]
 habitat_fixed_cuts_summer<-habitat_betas_summer_long[habitat_betas_summer_long$Covariate=="New cut"|habitat_betas_summer_long$Covariate=="New cut:Cut size"|habitat_betas_summer_long$Covariate=="Regen cut"|habitat_betas_summer_long$Covariate=="Regen cut:Cut size"|habitat_betas_summer_long$Covariate=="ln(Edge in)"|habitat_betas_summer_long$Covariate=="ln(Edge out)",]
+ 
+### SUMMARY TABLE ###
+betas_habitat_summer<-group_by(habitat_betas_summer_long,Covariate,Reproductive_class_summer) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
 
 ########## winter habitat betas ###########
 
@@ -958,6 +939,11 @@ habitat_fixed_landcover_winter<-habitat_betas_winter_long[habitat_betas_winter_l
 habitat_fixed_roads_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="ln(Road dist)"|habitat_betas_winter_long$Covariate=="Road density"|habitat_betas_winter_long$Covariate=="Road density:sin(hour)",]
 habitat_fixed_cuts_winter<-habitat_betas_winter_long[habitat_betas_winter_long$Covariate=="New cut"|habitat_betas_winter_long$Covariate=="New cut:Cut size"|habitat_betas_winter_long$Covariate=="Regen cut"|habitat_betas_winter_long$Covariate=="Regen cut:Cut size"|habitat_betas_winter_long$Covariate=="ln(Edge in)"|habitat_betas_winter_long$Covariate=="ln(Edge out)",]
  
+### SUMMARY TABLE ###
+betas_habitat_winter<-group_by(habitat_betas_winter_long,Covariate,Reproductive_class_winter) %>% summarise(median = median(Beta),
+                                                                                         lower = quantile(Beta,0.025),
+                                                                                         upper = quantile(Beta,0.975))
+
 ############ Plot all habitat betas ##############
 
 colnames(habitat_fixed_landcover_summer)[3] <- "Reproductiveclass"
@@ -1007,21 +993,6 @@ habitat_landcovercuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habita
         legend.box.background = element_rect(colour = "white"))
 habitat_landcovercuts_annual
 
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat betas.tiff", plot=habitat_landcovercuts_annual, units="in", width=16, height=8, dpi=600, compression = 'lzw')
-
-
-### SUMMARY TABLE ###
-betas_habitat<-group_by(habitat_fixed_betas_all_allseasons,Season,Covariate) %>% summarise(median = median(Beta),
-                                                                                         lower = quantile(Beta,0.025),
-                                                                                         upper = quantile(Beta,0.975))
-
-betas_habitat$median <- round(betas_habitat$median, digits=3)
-betas_habitat$lower <- round(betas_habitat$lower, digits=3)
-betas_habitat$upper <- round(betas_habitat$upper, digits=3)
-betas_habitat
-write.table(betas_habitat, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\betas_habitat.txt", sep = ",", quote = FALSE, row.names = F)
-
-
 -----------------------------------
 ########### STEP LENGTH RESULTS - ROAD DIST BY CUTAGE ##################
 -----------------------------------
@@ -1056,9 +1027,9 @@ SL_males_new_winter<-unique(paste(results_males_winter$wolf,results_males_winter
 #summer
 wolves_used_available_final_summer <- wolves_used_available_final[wolves_used_available_final$season=="Summer",]
 wolves_used_final_summer <- wolves_used_available_final_summer[wolves_used_available_final_summer$used==1,]
-wolf_summer_sl <- wolves_used_final_summer$sl/1000
-wolf_summer_gamma<-fitdistr(wolf_summer_sl,"gamma", lower=0.001)
-cutsize_summer<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 100)
+wolf_summer_sl <- wolves_used_final_summer$sl
+wolf_summer_gamma<-fitdistr(wolf_summer_sl,"gamma", lower=0.01)
+cutsize_summer<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 1000)
 
 for(i in 1:length(cutsize_summer)){
   y_slength_regen_summer<-(1/wolf_summer_gamma$estimate[2])*(wolf_summer_gamma$estimate[1] + 
@@ -1085,9 +1056,9 @@ SL_males_new_summer[,2]<-as.numeric(as.character(SL_males_new_summer[,2]))
 #winter
 wolves_used_available_final_winter <- wolves_used_available_final[wolves_used_available_final$season=="Winter",]
 wolves_used_final_winter <- wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,]
-wolf_winter_sl <- wolves_used_final_winter$sl/1000
-wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.001)
-cutsize_winter<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 100)
+wolf_winter_sl <- wolves_used_final_winter$sl
+wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.01)
+cutsize_winter<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 1000)
 
 for(i in 1:length(cutsize_winter)){
   y_slength_regen_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
@@ -1116,8 +1087,8 @@ SL_males_new_winter[,2]<-as.numeric(as.character(SL_males_new_winter[,2]))
 ########### bootstrap for wolfs at each d_trail value - regen #################
 
 #summer
-average_regen_summer<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_regen_summer<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(SL_males_regen_summer[,1]),7,replace=TRUE))
   bstrap<-data.frame()
@@ -1125,14 +1096,14 @@ for(i in 1:length(b.boot)){
     x<-SL_males_regen_summer[SL_males_regen_summer[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
+    mean<-colMeans(bstrap[,2:1001])
     average_regen_summer[i,]<-mean
   }
 }
 
 #winter
-average_regen_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_regen_winter<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(SL_males_regen_winter[,1]),7,replace=TRUE))
   bstrap<-data.frame()
@@ -1140,7 +1111,7 @@ for(i in 1:length(b.boot)){
     x<-SL_males_regen_winter[SL_males_regen_winter[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
+    mean<-colMeans(bstrap[,2:1001])
     average_regen_winter[i,]<-mean
   }
 }
@@ -1149,8 +1120,8 @@ for(i in 1:length(b.boot)){
 ########### plot median and percentiles - regen #####################
 
 #spring
-SL_males_regen_summer<-melt(average_regen_summer[c(1:200),])
-cutsize_summer1<-rep(cutsize_summer,each=200)
+SL_males_regen_summer<-melt(average_regen_summer[c(1:1000),])
+cutsize_summer1<-rep(cutsize_summer,each=1000)
 
 SL_males_regen_summer<-as.data.frame(cbind(SL_males_regen_summer,cutsize_summer1))
 
@@ -1165,8 +1136,8 @@ names(SL_males_regen_final_summer)[1] <- "Cut size"
 SL_males_regen_final_summer$Cutage <- "Regenerating"
 
 #winter
-SL_males_regen_winter<-melt(average_regen_winter[c(1:200),])
-cutsize_winter1<-rep(cutsize_winter,each=200)
+SL_males_regen_winter<-melt(average_regen_winter[c(1:1000),])
+cutsize_winter1<-rep(cutsize_winter,each=1000)
 
 SL_males_regen_winter<-as.data.frame(cbind(SL_males_regen_winter,cutsize_winter1))
 
@@ -1183,20 +1154,11 @@ SL_males_regen_final_winter$Cutage <- "Regenerating"
 SL_males_regen_final<-rbind(SL_males_regen_final_summer,SL_males_regen_final_winter)
 SL_males_regen_final$season <- factor(SL_males_regen_final$season, levels = c("Summer", "Winter"))
 names(SL_males_regen_final)[7] <- "Season"
-males_regen <-ggplot(SL_males_regen_final, aes(x=SL_males_regen_final$`Cut size`, y=`50%`,fill=Cutage,colour=Cutage)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  geom_line()+
-  labs(x= "Distance to road (m)",y="Step length (km/h)")+ylim(0,1)+
-  theme(axis.title = element_text(size=18),
-        axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
-males_regen
-
 
 ###### New #############
 #spring
-average_new_summer<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_new_summer<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(SL_males_new_summer[,1]),7,replace=TRUE))
   bstrap<-data.frame()
@@ -1204,14 +1166,14 @@ for(i in 1:length(b.boot)){
     x<-SL_males_new_summer[SL_males_new_summer[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
+    mean<-colMeans(bstrap[,2:1001])
     average_new_summer[i,]<-mean
   }
 }
 
 #winter
-average_new_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_new_winter<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
   wolf_bstrap<-as.vector(sample(unique(SL_males_new_winter[,1]),7,replace=TRUE))
   bstrap<-data.frame()
@@ -1219,7 +1181,7 @@ for(i in 1:length(b.boot)){
     x<-SL_males_new_winter[SL_males_new_winter[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
+    mean<-colMeans(bstrap[,2:1001])
     average_new_winter[i,]<-mean
   }
 }
@@ -1228,8 +1190,8 @@ for(i in 1:length(b.boot)){
 ##plot median and percentiles - new
 
 #summer
-SL_males_new_summer<-melt(average_new_summer[c(1:200),])
-cutsize_summer2<-rep(cutsize_summer,each=200)
+SL_males_new_summer<-melt(average_new_summer[c(1:1000),])
+cutsize_summer2<-rep(cutsize_summer,each=1000)
 
 SL_males_new_summer<-as.data.frame(cbind(SL_males_new_summer,cutsize_summer2))
 
@@ -1241,11 +1203,12 @@ SL_males_new_final_summer<-SL_males_new_summer %>% group_by(cutsize_summer2) %>%
             n=n())
 SL_males_new_final_summer$season <- "Summer"
 names(SL_males_new_final_summer)[1] <- "Cut size"
+names(SL_males_new_final_summer)[7] <- "Season"
 SL_males_new_final_summer$Cutage <- "New"
 
 #winter
-SL_males_new_winter<-melt(average_new_winter[c(1:200),])
-cutsize_summer2<-rep(cutsize_summer,each=200)
+SL_males_new_winter<-melt(average_new_winter[c(1:1000),])
+cutsize_summer2<-rep(cutsize_summer,each=1000)
 
 SL_males_new_winter<-as.data.frame(cbind(SL_males_new_winter,cutsize_summer2))
 
@@ -1258,1124 +1221,497 @@ SL_males_new_final_winter<-SL_males_new_winter %>% group_by(cutsize_summer2) %>%
 SL_males_new_final_winter$season <- "Winter"
 names(SL_males_new_final_winter)[1] <- "Cut size"
 SL_males_new_final_winter$Cutage <- "New"
+names(SL_males_new_final_winter)[7] <- "Season"
 
 SL_males_new_final<-rbind(SL_males_new_final_summer,SL_males_new_final_winter)
-SL_males_new_final$season <- factor(SL_males_new_final$season, levels = c("Summer", "Winter"))
-names(SL_males_new_final)[7] <- "Season"
+SL_males_new_final$Season <- factor(SL_males_new_final$Season, levels = c("Summer", "Winter"))
 
 SL_cutagesize <- rbind(SL_males_new_final,SL_males_regen_final)
-SL_cutagesize_summer <- SL_cutagesize[SL_cutagesize$Season == "Summer",]
-SL_cutagesize_winter <-SL_cutagesize[SL_cutagesize$Season == "Winter",]
+SL_cutagesize_summer <- SL_cutagesize[SL_cutagesize$Season=="Summer",]
+SL_cutagesize_winter <- SL_cutagesize[SL_cutagesize$Season=="Winter",]
 
-males_new <-ggplot(SL_cutagesize_summer, aes(x=`Cut size`, y=`50%`,fill=Cutage,colour=Cutage)) +
+P_SL_cutagesize_winter <-ggplot(SL_cutagesize_winter, aes(x=`Cut size`, y=`50%`,fill=Cutage,colour=Cutage)) +
   geom_line()+
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)  + 
-    coord_cartesian(ylim=c(0, 0.7))+
-  labs(x= "Cut size",y="Step length (km/h)")+
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  labs(x=expression("Cut size"~(km^2)),y="Step length (m/h)") + theme_bw()+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
-males_new
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,200),expand=F) + 
+  theme(legend.position = c(0.8, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
+  theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
-p_SL_cutagesize_winter <-ggplot(SL_cutagesize_winter, aes(x=`Cut size`, y=`50%`,fill=Cutage,colour=Cutage)) +
-  geom_line()+
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)  + 
-    coord_cartesian(ylim=c(0, 1))+
-  labs(x= "Cut size",y="Step length (km/h)")+
+P_SL_cutagesize_summer <-ggplot(SL_cutagesize_summer, aes(x=`Cut size`, y=`50%`,fill=Cutage,colour=Cutage)) +
+  geom_line()+theme_bw()+
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+ labs(x=expression("Cut size"~(km^2)),y="Step length (m/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
-p_SL_cutagesize_winter
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,200),expand=F) + 
+  theme(legend.position = c(0.8, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
+  theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
 prow <- plot_grid(
-  males_new + theme(legend.position="none"),
-  males_regen + theme(legend.position="none"),
+  P_SL_cutagesize_summer,
+  P_SL_cutagesize_winter,
   align = 'vh',
-  labels = c("     A) New cut", "B) Regenerating cut"),
-  hjust=-0.5,
-  vjust=2,
+  labels = c("     A) Summer", "      B) Winter"),
+  hjust=-0.6,
+  vjust=5,
   nrow = 1
 )
 prow
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\SL_cutsizeage_plot.tiff", plot=prow, units="in", width=14, height=8, dpi=600, compression = 'lzw')
 
-legend <- get_legend(
-  # create some space to the left of the legend
-  males_roaddist_regen + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=20))
-)
-distroad <- plot_grid(prow, legend, rel_widths = c(3, .4))
-distroad
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\distance to road.tiff", plot=distroad, units="in", width=17, height=8, dpi=600, compression = 'lzw')
-
-
-SL_cutage <- rbind(SL_males_new_final, SL_males_regen_final)
-
-ggplot(SL_cutage, aes(x=SL_cutage$`Cut size`, y=`50%`,fill=Cutage)) + facet_grid(~ season) +
-  geom_line()+
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)
 
 #################### Road density #########################
 
-#spring
-wolves_used_available_final_spring <- wolves_used_available_final[wolves_used_available_final$season=="spring",]
-wolves_used_final_spring <- wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,]
-wolf_spring_sl <- wolves_used_final_spring$sl/1000
-wolf_spring_gamma<-fitdistr(wolf_spring_sl,"gamma", lower=0.001)
-d_roaddens_spring<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 100)
+SL_males_roaddist_summer<-unique(paste(results_males_summer$wolf,results_males_summer$Year))
+SL_males_roaddist_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
+roaddist_summer<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,1),length.out = 1000)
+roaddist_winter<-seq(min(wolves_used_available_final$ln_start_roaddist),quantile(wolves_used_available_final$ln_start_roaddist,1),length.out = 1000)
 
-for(i in 1:length(d_roaddens_spring)){
-  y_slength_roaddens_regen_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
-                                              slength_spring +
-                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_spring*mean(wolves_used_available_final$ln_start_roaddist)) + (slength_lnslnewcut_spring*0)+(slength_lnslregencut_spring*1)+
-                                                (slength_lnslroaddens_spring)*d_roaddens_spring[i])
-  y_slength_roaddens_new_spring<-(1/wolf_spring_gamma$estimate[2])*(wolf_spring_gamma$estimate[1] + 
-                                              slength_spring +
-                                              (slength_lnslsinhour_spring*mean(wolves_used_available_final$sinhour))+
-                                                (slength_lnslroaddist_spring*mean(wolves_used_available_final$ln_start_roaddist))+(slength_lnslnewcut_spring*1)+(slength_lnslregencut_spring*0) + 
-                                                (slength_lnslroaddens_spring)*d_roaddens_spring[i])
-
-  SL_males_roaddens_regen_spring<-as.data.frame(cbind(SL_males_roaddens_regen_spring,y_slength_roaddens_regen_spring))
-  SL_males_roaddens_new_spring<-as.data.frame(cbind(SL_males_roaddens_new_spring,y_slength_roaddens_new_spring))
+#summer
+for(i in 1:length(roaddist_summer)){
+    y_slength_roaddist_summer<-(1/wolf_summer_gamma$estimate[2])*(wolf_summer_gamma$estimate[1] + 
+                                              slength_summer +
+                                              (slength_lnslsinhour_summer*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslnewcut_summer*0)+(slength_lnslregencut_summer*0)+
+                                                ((slength_lnslnewsize_summer)*(slength_lnslnewcut_summer*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                ((slength_lnslregensize_summer)*(slength_lnslregencut_summer*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                (slength_lnslroaddist_summer*roaddist_summer[i])+
+                                                (slength_lnslroaddens_summer)*mean(wolves_used_available_final$start_roaddens))
+  SL_males_roaddist_summer<-as.data.frame(cbind(SL_males_roaddist_summer,y_slength_roaddist_summer))
 }
 
-SL_males_roaddens_regen_spring[,2]<-as.numeric(as.character(SL_males_roaddens_regen_spring[,2]))
-SL_males_roaddens_new_spring[,2]<-as.numeric(as.character(SL_males_roaddens_new_spring[,2]))
-
-#earlysum
-wolves_used_available_final_earlysum <- wolves_used_available_final[wolves_used_available_final$season=="earlysum",]
-wolves_used_final_earlysum <- wolves_used_available_final_earlysum[wolves_used_available_final_earlysum$used==1,]
-wolf_earlysum_sl <- wolves_used_final_earlysum$sl/1000
-wolf_earlysum_gamma<-fitdistr(wolf_earlysum_sl,"gamma", lower=0.001)
-d_roaddens_earlysum<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 100)
-
-for(i in 1:length(d_roaddens_earlysum)){
-  y_slength_roaddens_regen_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
-                                              slength_earlysum +
-                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_earlysum*mean(wolves_used_available_final$ln_start_roaddist)) + (slength_lnslnewcut_earlysum*0)+(slength_lnslregencut_earlysum*1)+
-                                                (slength_lnslroaddens_earlysum)*d_roaddens_earlysum[i])
-  y_slength_roaddens_new_earlysum<-(1/wolf_earlysum_gamma$estimate[2])*(wolf_earlysum_gamma$estimate[1] + 
-                                              slength_earlysum +
-                                              (slength_lnslsinhour_earlysum*mean(wolves_used_available_final$sinhour))+
-                                                (slength_lnslroaddist_earlysum*mean(wolves_used_available_final$ln_start_roaddist))+(slength_lnslnewcut_earlysum*1)+(slength_lnslregencut_earlysum*0) + 
-                                                (slength_lnslroaddens_earlysum)*d_roaddens_earlysum[i])
-
-  SL_males_roaddens_regen_earlysum<-as.data.frame(cbind(SL_males_roaddens_regen_earlysum,y_slength_roaddens_regen_earlysum))
-  SL_males_roaddens_new_earlysum<-as.data.frame(cbind(SL_males_roaddens_new_earlysum,y_slength_roaddens_new_earlysum))
-}
-
-SL_males_roaddens_regen_earlysum[,2]<-as.numeric(as.character(SL_males_roaddens_regen_earlysum[,2]))
-SL_males_roaddens_new_earlysum[,2]<-as.numeric(as.character(SL_males_roaddens_new_earlysum[,2]))
-
-#latesum
-wolves_used_available_final_latesum <- wolves_used_available_final[wolves_used_available_final$season=="latesum",]
-wolves_used_final_latesum <- wolves_used_available_final_latesum[wolves_used_available_final_latesum$used==1,]
-wolf_latesum_sl <- wolves_used_final_latesum$sl/1000
-wolf_latesum_gamma<-fitdistr(wolf_latesum_sl,"gamma", lower=0.001)
-d_roaddens_latesum<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 100)
-
-for(i in 1:length(d_roaddens_latesum)){
-  y_slength_roaddens_regen_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
-                                              slength_latesum +
-                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_latesum*mean(wolves_used_available_final$ln_start_roaddist)) + (slength_lnslnewcut_latesum*0)+(slength_lnslregencut_latesum*1)+
-                                                (slength_lnslroaddens_latesum)*d_roaddens_latesum[i])
-  y_slength_roaddens_new_latesum<-(1/wolf_latesum_gamma$estimate[2])*(wolf_latesum_gamma$estimate[1] + 
-                                              slength_latesum +
-                                              (slength_lnslsinhour_latesum*mean(wolves_used_available_final$sinhour))+
-                                                (slength_lnslroaddist_latesum*mean(wolves_used_available_final$ln_start_roaddist))+(slength_lnslnewcut_latesum*1)+(slength_lnslregencut_latesum*0) + 
-                                                (slength_lnslroaddens_latesum)*d_roaddens_latesum[i])
-
-  SL_males_roaddens_regen_latesum<-as.data.frame(cbind(SL_males_roaddens_regen_latesum,y_slength_roaddens_regen_latesum))
-  SL_males_roaddens_new_latesum<-as.data.frame(cbind(SL_males_roaddens_new_latesum,y_slength_roaddens_new_latesum))
-}
-
-SL_males_roaddens_regen_latesum[,2]<-as.numeric(as.character(SL_males_roaddens_regen_latesum[,2]))
-SL_males_roaddens_new_latesum[,2]<-as.numeric(as.character(SL_males_roaddens_new_latesum[,2]))
-
-#autumn
-wolves_used_available_final_autumn <- wolves_used_available_final[wolves_used_available_final$season=="autumn",]
-wolves_used_final_autumn <- wolves_used_available_final_autumn[wolves_used_available_final_autumn$used==1,]
-wolf_autumn_sl <- wolves_used_final_autumn$sl/1000
-wolf_autumn_gamma<-fitdistr(wolf_autumn_sl,"gamma", lower=0.001)
-d_roaddens_autumn<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 100)
-
-for(i in 1:length(d_roaddens_autumn)){
-  y_slength_roaddens_regen_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
-                                              slength_autumn +
-                                              (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_autumn*mean(wolves_used_available_final$ln_start_roaddist)) + (slength_lnslnewcut_autumn*0)+(slength_lnslregencut_autumn*1)+
-                                                (slength_lnslroaddens_autumn)*d_roaddens_autumn[i])
-  y_slength_roaddens_new_autumn<-(1/wolf_autumn_gamma$estimate[2])*(wolf_autumn_gamma$estimate[1] + 
-                                              slength_autumn +
-                                              (slength_lnslsinhour_autumn*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_autumn*mean(wolves_used_available_final$ln_start_roaddist))+ (slength_lnslnewcut_autumn*1)+ (slength_lnslregencut_autumn*0) + 
-                                                (slength_lnslroaddens_autumn)*d_roaddens_autumn[i])
-
-  SL_males_roaddens_regen_autumn<-as.data.frame(cbind(SL_males_roaddens_regen_autumn,y_slength_roaddens_regen_autumn))
-  SL_males_roaddens_new_autumn<-as.data.frame(cbind(SL_males_roaddens_new_autumn,y_slength_roaddens_new_autumn))
-}
-
-SL_males_roaddens_regen_autumn[,2]<-as.numeric(as.character(SL_males_roaddens_regen_autumn[,2]))
-SL_males_roaddens_new_autumn[,2]<-as.numeric(as.character(SL_males_roaddens_new_autumn[,2]))
+SL_males_roaddist_summer[,2]<-as.numeric(as.character(SL_males_roaddist_summer[,2]))
 
 #winter
-wolves_used_available_final_winter <- wolves_used_available_final[wolves_used_available_final$season=="winter",]
-wolves_used_final_winter <- wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,]
-wolf_winter_sl <- wolves_used_final_winter$sl/1000
-wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.001)
-d_roaddens_winter<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 100)
-
-for(i in 1:length(d_roaddens_winter)){
-  y_slength_roaddens_regen_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
+for(i in 1:length(roaddist_winter)){
+    y_slength_roaddist_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
                                               slength_winter +
-                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddist_winter*mean(wolves_used_available_final$ln_start_roaddist)) + (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*1)+
-                                                (slength_lnslroaddens_winter)*d_roaddens_winter[i])
-  y_slength_roaddens_new_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
-                                              slength_winter +
-                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour)) +
-                                                (slength_lnslroaddens_winter*mean(wolves_used_available_final$start_roaddens))+ (slength_lnslnewcut_winter*1)+ (slength_lnslregencut_winter*0) + 
-                                                (slength_lnslroaddens_winter)*d_roaddens_winter[i])
-
-  SL_males_roaddens_regen_winter<-as.data.frame(cbind(SL_males_roaddens_regen_winter,y_slength_roaddens_regen_winter))
-  SL_males_roaddens_new_winter<-as.data.frame(cbind(SL_males_roaddens_new_winter,y_slength_roaddens_new_winter))
+                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*0)+
+                                                ((slength_lnslnewsize_winter)*(slength_lnslnewcut_winter*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                ((slength_lnslregensize_winter)*(slength_lnslregencut_winter*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                (slength_lnslroaddist_winter*roaddist_winter[i])+
+                                                (slength_lnslroaddens_winter)*mean(wolves_used_available_final$start_roaddens))
+  SL_males_roaddist_winter<-as.data.frame(cbind(SL_males_roaddist_winter,y_slength_roaddist_winter))
 }
 
-SL_males_roaddens_regen_winter[,2]<-as.numeric(as.character(SL_males_roaddens_regen_winter[,2]))
-SL_males_roaddens_new_winter[,2]<-as.numeric(as.character(SL_males_roaddens_new_winter[,2]))
+SL_males_roaddist_winter[,2]<-as.numeric(as.character(SL_males_roaddist_winter[,2]))
 
+########### bootstrap for wolfs at each d_trail value #################
 
-############## BOOTSTRAPPED VALUES FOR ERROR RIBBONS - ROADDENS #################
-
-########### bootstrap for wolfs at each d_trail value - regen #################
-
-#spring
-average_regen_roaddens_spring<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+#summer
+average_roaddist_summer<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_regen_spring[,1]),7,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddist_summer[,1]),7,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_regen_spring[SL_males_roaddens_regen_spring[,1]==wolf_bstrap[j],]
+    x<-SL_males_roaddist_summer[SL_males_roaddist_summer[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_regen_roaddens_spring[i,]<-mean
-  }
-}
-
-#earlysum
-average_regen_roaddens_earlysum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_regen_earlysum[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_regen_earlysum[SL_males_roaddens_regen_earlysum[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_regen_roaddens_earlysum[i,]<-mean
-  }
-}
-
-#latesum
-average_regen_roaddens_latesum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_regen_latesum[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_regen_latesum[SL_males_roaddens_regen_latesum[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_regen_roaddens_latesum[i,]<-mean
-  }
-}
-
-#autumn
-average_regen_roaddens_autumn<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_regen_autumn[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_regen_autumn[SL_males_roaddens_regen_autumn[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_regen_roaddens_autumn[i,]<-mean
+    mean<-colMeans(bstrap[,2:1001])
+    average_roaddist_summer[i,]<-mean
   }
 }
 
 #winter
-average_regen_roaddens_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_roaddist_winter<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_regen_winter[,1]),7,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddist_winter[,1]),7,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_regen_winter[SL_males_roaddens_regen_winter[,1]==wolf_bstrap[j],]
+    x<-SL_males_roaddist_winter[SL_males_roaddist_winter[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_regen_roaddens_winter[i,]<-mean
+    mean<-colMeans(bstrap[,2:1001])
+    average_roaddist_winter[i,]<-mean
   }
 }
 
 
 ########### plot median and percentiles - regen #####################
 
-#spring
-SL_males_roaddens_regen_spring<-melt(average_regen_roaddens_spring[c(1:200),])
-d_roaddens_spring1<-rep(d_roaddens_spring,each=200)
+#summer
+SL_males_roaddist_summer<-melt(average_roaddist_summer[c(1:1000),])
+roaddist_summer1<-rep(roaddist_summer,each=1000)
 
-SL_males_roaddens_regen_spring<-as.data.frame(cbind(SL_males_roaddens_regen_spring,d_roaddens_spring1))
+SL_males_roaddist_summer<-as.data.frame(cbind(SL_males_roaddist_summer,roaddist_summer1))
 
-SL_males_roaddens_regen_final_spring<-SL_males_roaddens_regen_spring %>% group_by(d_roaddens_spring1) %>%
+SL_males_roaddist_final_summer<-SL_males_roaddist_summer %>% group_by(roaddist_summer1) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-SL_males_roaddens_regen_final_spring$season <- "spring"
-names(SL_males_roaddens_regen_final_spring)[1] <- "d_roaddens"
-
-#earlysum
-SL_males_roaddens_regen_earlysum<-melt(average_regen_roaddens_earlysum[c(1:200),])
-d_roaddens_earlysum1<-rep(d_roaddens_earlysum,each=200)
-
-SL_males_roaddens_regen_earlysum<-as.data.frame(cbind(SL_males_roaddens_regen_earlysum,d_roaddens_earlysum1))
-
-SL_males_roaddens_regen_final_earlysum<-SL_males_roaddens_regen_earlysum %>% group_by(d_roaddens_earlysum1) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_regen_final_earlysum$season <- "earlysum"
-names(SL_males_roaddens_regen_final_earlysum)[1] <- "d_roaddens"
-
-#latesum
-SL_males_roaddens_regen_latesum<-melt(average_regen_roaddens_latesum[c(1:200),])
-d_roaddens_latesum1<-rep(d_roaddens_latesum,each=200)
-
-SL_males_roaddens_regen_latesum<-as.data.frame(cbind(SL_males_roaddens_regen_latesum,d_roaddens_latesum1))
-
-SL_males_roaddens_regen_final_latesum<-SL_males_roaddens_regen_latesum %>% group_by(d_roaddens_latesum1) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_regen_final_latesum$season <- "latesum"
-names(SL_males_roaddens_regen_final_latesum)[1] <- "d_roaddens"
-
-#autumn
-SL_males_roaddens_regen_autumn<-melt(average_regen_roaddens_autumn[c(1:200),])
-d_roaddens_autumn1<-rep(d_roaddens_autumn,each=200)
-
-SL_males_roaddens_regen_autumn<-as.data.frame(cbind(SL_males_roaddens_regen_autumn,d_roaddens_autumn1))
-
-SL_males_roaddens_regen_final_autumn<-SL_males_roaddens_regen_autumn %>% group_by(d_roaddens_autumn1) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_regen_final_autumn$season <- "autumn"
-names(SL_males_roaddens_regen_final_autumn)[1] <- "d_roaddens"
+SL_males_roaddist_final_summer$Season <- "Summer"
+names(SL_males_roaddist_final_summer)[1] <- "roaddist"
 
 #winter
-SL_males_roaddens_regen_winter<-melt(average_regen_roaddens_winter[c(1:200),])
-d_roaddens_winter1<-rep(d_roaddens_winter,each=200)
+SL_males_roaddist_winter<-melt(average_roaddist_winter[c(1:1000),])
+roaddist_winter1<-rep(roaddist_winter,each=1000)
 
-SL_males_roaddens_regen_winter<-as.data.frame(cbind(SL_males_roaddens_regen_winter,d_roaddens_winter1))
+SL_males_roaddist_winter<-as.data.frame(cbind(SL_males_roaddist_winter,roaddist_winter1))
 
-SL_males_roaddens_regen_final_winter<-SL_males_roaddens_regen_winter %>% group_by(d_roaddens_winter1) %>%
+SL_males_roaddist_final_winter<-SL_males_roaddist_winter %>% group_by(roaddist_winter1) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-SL_males_roaddens_regen_final_winter$season <- "winter"
-names(SL_males_roaddens_regen_final_winter)[1] <- "d_roaddens"
+SL_males_roaddist_final_winter$Season <- "Winter"
+names(SL_males_roaddist_final_winter)[1] <- "roaddist"
 
-SL_roaddens_males_regen_final<-rbind(SL_males_roaddens_regen_final_spring,SL_males_roaddens_regen_final_earlysum,SL_males_roaddens_regen_final_latesum,SL_males_roaddens_regen_final_autumn,SL_males_roaddens_regen_final_winter)
-SL_roaddens_males_regen_final$season <- factor(SL_roaddens_males_regen_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
-levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="spring"] <- "Spring"
-levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="earlysum"] <- "Early summer"
-levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="latesum"] <- "Late summer"
-levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="autumn"] <- "Autumn"
-levels(SL_roaddens_males_regen_final$season)[levels(SL_roaddens_males_regen_final$season)=="winter"] <- "Winter"
-names(SL_roaddens_males_regen_final)[7] <- "Season"
-males_roaddens_regen <-ggplot(SL_roaddens_males_regen_final, aes(x=d_roaddens, y=`50%`,fill=Season,colour=Season)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+SL_roaddist_males_final<-rbind(SL_males_roaddist_final_summer,SL_males_roaddist_final_winter)
+SL_roaddist_males_final$Season <- factor(SL_roaddist_males_final$Season, levels = c("Summer", "Winter"))
+SL_roaddist_males_final$distroad <- exp(SL_roaddist_males_final$roaddist)
+
+males_roaddist <-ggplot(SL_roaddist_males_final, aes(x=distroad, y=`50%`,fill=Season,colour=Season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +theme_bw()+
   geom_line()+
-  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)+
+  labs(x= expression("Distance to road (m)"),y="Step length (m/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
-males_roaddens_regen
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(100,200),xlim=c(0,3000),expand=F) + 
+  theme(legend.position = c(0.9, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
+  theme(plot.margin=unit(c(1.1,1,0.5,0.5),"cm"))
+males_roaddist
 
-###### New #############
-#spring
-average_new_roaddens_spring<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_new_spring[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_new_spring[SL_males_roaddens_new_spring[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_new_roaddens_spring[i,]<-mean
-  }
+#################### Road density #########################
+
+SL_males_roaddens_summer<-unique(paste(results_males_summer$wolf,results_males_summer$Year))
+SL_males_roaddens_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
+roaddens_summer<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 1000)
+roaddens_winter<-seq(min(wolves_used_available_final$start_roaddens),quantile(wolves_used_available_final$start_roaddens,1),length.out = 1000)
+
+#summer
+for(i in 1:length(roaddens_summer)){
+    y_slength_roaddens_summer<-(1/wolf_summer_gamma$estimate[2])*(wolf_summer_gamma$estimate[1] + 
+                                              slength_summer +
+                                              (slength_lnslsinhour_summer*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslnewcut_summer*0)+(slength_lnslregencut_summer*0)+
+                                                ((slength_lnslnewsize_summer)*(slength_lnslnewcut_summer*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                ((slength_lnslregensize_summer)*(slength_lnslregencut_summer*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                (slength_lnslroaddens_summer*roaddens_summer[i])+
+                                                (slength_lnslroaddist_summer)*mean(wolves_used_available_final$ln_start_roaddist))
+  SL_males_roaddens_summer<-as.data.frame(cbind(SL_males_roaddens_summer,y_slength_roaddens_summer))
 }
 
-#earlysum
-average_new_roaddens_earlysum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_new_earlysum[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_new_earlysum[SL_males_roaddens_new_earlysum[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_new_roaddens_earlysum[i,]<-mean
-  }
+SL_males_roaddens_summer[,2]<-as.numeric(as.character(SL_males_roaddens_summer[,2]))
+
+#winter
+for(i in 1:length(roaddens_winter)){
+    y_slength_roaddens_winter<-(1/wolf_winter_gamma$estimate[2])*(wolf_winter_gamma$estimate[1] + 
+                                              slength_winter +
+                                              (slength_lnslsinhour_winter*mean(wolves_used_available_final$sinhour))+
+                                                (slength_lnslnewcut_winter*0)+(slength_lnslregencut_winter*0)+
+                                                ((slength_lnslnewsize_winter)*(slength_lnslnewcut_winter*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                ((slength_lnslregensize_winter)*(slength_lnslregencut_winter*0)*mean(wolves_used_available_final$start_sizeha))+
+                                                (slength_lnslroaddens_winter*roaddens_winter[i])+
+                                                (slength_lnslroaddist_winter)*mean(wolves_used_available_final$ln_start_roaddist))
+  SL_males_roaddens_winter<-as.data.frame(cbind(SL_males_roaddens_winter,y_slength_roaddens_winter))
 }
 
-#latesum
-average_new_roaddens_latesum<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_new_latesum[,1]),7,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_new_latesum[SL_males_roaddens_new_latesum[,1]==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_new_roaddens_latesum[i,]<-mean
-  }
-}
+SL_males_roaddens_winter[,2]<-as.numeric(as.character(SL_males_roaddens_winter[,2]))
 
-#autumn
-average_new_roaddens_autumn<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+
+############## BOOTSTRAPPED VALUES FOR ERROR RIBBONS - ROADDENS #################
+
+########### bootstrap for wolfs at each d_trail value #################
+
+#summer
+average_roaddens_summer<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_new_autumn[,1]),7,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_summer[,1]),7,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_new_autumn[SL_males_roaddens_new_autumn[,1]==wolf_bstrap[j],]
+    x<-SL_males_roaddens_summer[SL_males_roaddens_summer[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_new_roaddens_autumn[i,]<-mean
+    mean<-colMeans(bstrap[,2:1001])
+    average_roaddens_summer[i,]<-mean
   }
 }
 
 #winter
-average_new_roaddens_winter<-data.frame(matrix(NA, nrow = 200, ncol = 100))
-b.boot<-1:200
+average_roaddens_winter<-data.frame(matrix(NA, nrow = 1000, ncol = 1000))
+b.boot<-1:1000
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_new_winter[,1]),7,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(SL_males_roaddens_winter[,1]),7,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-SL_males_roaddens_new_winter[SL_males_roaddens_new_winter[,1]==wolf_bstrap[j],]
+    x<-SL_males_roaddens_winter[SL_males_roaddens_winter[,1]==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:101])
-    average_new_roaddens_winter[i,]<-mean
+    mean<-colMeans(bstrap[,2:1001])
+    average_roaddens_winter[i,]<-mean
   }
 }
 
 
-##plot median and percentiles - new
+########### plot median and percentiles - regen #####################
 
-#spring
-SL_males_roaddens_new_spring<-melt(average_new_roaddens_spring[c(1:200),])
-d_roaddens_spring2<-rep(d_roaddens_spring,each=200)
+#summer
+SL_males_roaddens_summer<-melt(average_roaddens_summer[c(1:1000),])
+roaddens_summer1<-rep(roaddens_summer,each=1000)
 
-SL_males_roaddens_new_spring<-as.data.frame(cbind(SL_males_roaddens_new_spring,d_roaddens_spring2))
+SL_males_roaddens_summer<-as.data.frame(cbind(SL_males_roaddens_summer,roaddens_summer1))
 
-SL_males_roaddens_new_final_spring<-SL_males_roaddens_new_spring %>% group_by(d_roaddens_spring2) %>%
+SL_males_roaddens_final_summer<-SL_males_roaddens_summer %>% group_by(roaddens_summer1) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-SL_males_roaddens_new_final_spring$season <- "spring"
-names(SL_males_roaddens_new_final_spring)[1] <- "d_roaddens"
-
-#earlysum
-SL_males_roaddens_new_earlysum<-melt(average_new_roaddens_earlysum[c(1:200),])
-d_roaddens_earlysum2<-rep(d_roaddens_earlysum,each=200)
-
-SL_males_roaddens_new_earlysum<-as.data.frame(cbind(SL_males_roaddens_new_earlysum,d_roaddens_earlysum2))
-
-SL_males_roaddens_new_final_earlysum<-SL_males_roaddens_new_earlysum %>% group_by(d_roaddens_earlysum2) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_new_final_earlysum$season <- "earlysum"
-names(SL_males_roaddens_new_final_earlysum)[1] <- "d_roaddens"
-
-#latesum
-SL_males_roaddens_new_latesum<-melt(average_new_roaddens_latesum[c(1:200),])
-d_roaddens_latesum2<-rep(d_roaddens_latesum,each=200)
-
-SL_males_roaddens_new_latesum<-as.data.frame(cbind(SL_males_roaddens_new_latesum,d_roaddens_latesum2))
-
-SL_males_roaddens_new_final_latesum<-SL_males_roaddens_new_latesum %>% group_by(d_roaddens_latesum2) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_new_final_latesum$season <- "latesum"
-names(SL_males_roaddens_new_final_latesum)[1] <- "d_roaddens"
-
-#autumn
-SL_males_roaddens_new_autumn<-melt(average_new_roaddens_autumn[c(1:200),])
-d_roaddens_autumn2<-rep(d_roaddens_autumn,each=200)
-
-SL_males_roaddens_new_autumn<-as.data.frame(cbind(SL_males_roaddens_new_autumn,d_roaddens_autumn2))
-
-SL_males_roaddens_new_final_autumn<-SL_males_roaddens_new_autumn %>% group_by(d_roaddens_autumn2) %>%
-  summarise(`5%`=quantile(value, probs=0.025),
-            `50%`=quantile(value, probs=0.5),
-            `95%`=quantile(value, probs=0.975),
-            avg=mean(value),
-            n=n())
-SL_males_roaddens_new_final_autumn$season <- "autumn"
-names(SL_males_roaddens_new_final_autumn)[1] <- "d_roaddens"
+SL_males_roaddens_final_summer$Season <- "Summer"
+names(SL_males_roaddens_final_summer)[1] <- "roaddens"
 
 #winter
-SL_males_roaddens_new_winter<-melt(average_new_roaddens_winter[c(1:200),])
-d_roaddens_winter2<-rep(d_roaddens_winter,each=200)
+SL_males_roaddens_winter<-melt(average_roaddens_winter[c(1:1000),])
+roaddens_winter1<-rep(roaddens_winter,each=1000)
 
-SL_males_roaddens_new_winter<-as.data.frame(cbind(SL_males_roaddens_new_winter,d_roaddens_winter2))
+SL_males_roaddens_winter<-as.data.frame(cbind(SL_males_roaddens_winter,roaddens_winter1))
 
-SL_males_roaddens_new_final_winter<-SL_males_roaddens_new_winter %>% group_by(d_roaddens_winter2) %>%
+SL_males_roaddens_final_winter<-SL_males_roaddens_winter %>% group_by(roaddens_winter1) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
-SL_males_roaddens_new_final_winter$season <- "winter"
-names(SL_males_roaddens_new_final_winter)[1] <- "d_roaddens"
+SL_males_roaddens_final_winter$Season <- "Winter"
+names(SL_males_roaddens_final_winter)[1] <- "roaddens"
 
-SL_roaddens_males_new_final<-rbind(SL_males_roaddens_new_final_spring,SL_males_roaddens_new_final_earlysum,SL_males_roaddens_new_final_latesum,SL_males_roaddens_new_final_autumn,SL_males_roaddens_new_final_winter)
-SL_roaddens_males_new_final$season <- factor(SL_roaddens_males_new_final$season, levels = c("spring", "earlysum", "latesum", "autumn", "winter"))
-levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="spring"] <- "Spring"
-levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="earlysum"] <- "Early summer"
-levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="latesum"] <- "Late summer"
-levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="autumn"] <- "Autumn"
-levels(SL_roaddens_males_new_final$season)[levels(SL_roaddens_males_new_final$season)=="winter"] <- "Winter"
+SL_roaddens_males_final<-rbind(SL_males_roaddens_final_summer,SL_males_roaddens_final_winter)
+SL_roaddens_males_final$Season <- factor(SL_roaddens_males_final$Season, levels = c("Summer", "Winter"))
 
-males_roaddens_new <-ggplot(SL_roaddens_males_new_final, aes(x=d_roaddens, y=`50%`,fill=season,colour=season)) +
+males_roaddens <-ggplot(SL_roaddens_males_final, aes(x=roaddens, y=`50%`,fill=Season,colour=Season)) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)+theme_bw()+coord_cartesian(ylim=c(100,175),expand=F) +
   geom_line()+
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+ylim(0,2)+
+  labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
+        axis.text.y = element_text(size=18, colour = "black"))+ 
+  theme(legend.position = c(0.9, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
+  theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
-males_roaddens_new
+males_roaddens
 
 prow2 <- plot_grid(
-  males_roaddens_new + theme(legend.position="none"),
-  males_roaddens_regen + theme(legend.position="none"),
+  males_roaddist,
+  males_roaddens,
   align = 'vh',
-  labels = c("     C) New cut", "D) Regenerating cut"),
   hjust=-0.5,
   vjust=2,
   nrow = 1
 )
 prow2
 
-legend2 <- get_legend(
-  # create some space to the left of the legend
-  males_roaddens_regen + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=18))
-)
-steplengthplot <- plot_grid(prow,legend2,prow2,nrow=2,ncol=2, rel_widths = c(3, .4,3))
-steplengthplot
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length.tiff", plot=steplengthplot, units="in", width=16, height=8, dpi=600, compression = 'lzw')
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length2.tiff", plot=prow2, units="in", width=16, height=8, dpi=600, compression = 'lzw')
 
 -----------------------------------
 ########### RSS CALCULATIONS ##############
 -----------------------------------
-
   
-## RSS - MALES
-road_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist",7]))
-mean_SL_spring<-mean(wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,11])
-d_road<-seq(min(wolves_used_available_final_spring$ln_end_roaddist), max(wolves_used_available_final_spring$ln_end_roaddist),length.out = 1000)
-RSS_males_road_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+## RSS - Distance to Road
+road_beta_summer<-as.numeric(as.character(results_males_summer[results_males_summer$Covariates=="ln_end_roaddist",7]))
+mean_SL_summer<-mean(wolves_used_available_final_summer[wolves_used_available_final_summer$used==1,53])
+d_road<-seq(min(wolves_used_available_final_summer$ln_end_roaddist), max(wolves_used_available_final_summer$ln_end_roaddist),length.out = 1000)
+RSS_males_road_summer<-unique(paste(results_males_summer$wolf,results_males_summer$Year))
 
 ##create responses for each bear
 for(i in 1:length(d_road)){
-  RSS_road_spring<-(d_road[i]*road_beta_spring)
-  RSS_males_road_spring<-as.data.frame(cbind(RSS_males_road_spring,RSS_road_spring))
+  RSS_road_summer<-(d_road[i]*road_beta_summer)
+  RSS_males_road_summer<-as.data.frame(cbind(RSS_males_road_summer,RSS_road_summer))
 }
-
-RSS_males_road_spring[,2]<-as.numeric(as.character(RSS_males_road_spring[,2]))
+RSS_males_road_summer[,2]<-as.numeric(as.character(RSS_males_road_summer[,2]))
 
 average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
 b.boot<-1:200
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_road_spring$RSS_males_road_spring),8,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_road_summer$RSS_males_road_summer),8,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_road_spring[RSS_males_road_spring$RSS_males_road_spring==wolf_bstrap[j],]
+    x<-RSS_males_road_summer[RSS_males_road_summer$RSS_males_road_summer==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
     mean<-colMeans(bstrap[,2:1001])
     average_new[i,]<-mean
   }
 }
-
-RSS_males_cut_new_spring2<-melt(average_new[c(1:200),])
+RSS_males_cut_new_summer2<-melt(average_new[c(1:200),])
 
 d_road<-rep(d_road,each=200)
-RSS_males_cut_new_spring<-cbind(RSS_males_cut_new_spring2,d_road)
+RSS_males_cut_new_summer<-cbind(RSS_males_cut_new_summer2,d_road)
 
-RSS_males_cut_new_spring_final<-RSS_males_cut_new_spring %>% group_by(d_road) %>%
+RSS_males_cut_new_summer_final<-RSS_males_cut_new_summer %>% group_by(d_road) %>%
   summarise(`5%`=quantile(value, probs=0.025),
             `50%`=quantile(value, probs=0.5),
             `95%`=quantile(value, probs=0.975),
             avg=mean(value),
             n=n())
+RSS_males_cut_new_summer_final$Season <- "Summer"
 
-RSS_males_cut_new_spring_final$lnRSS <- log(RSS_males_cut_new_spring_final$`50%`)
-RSS_males_cut_new_spring_final$lnRSS5 <- log(RSS_males_cut_new_spring_final$`5%`)
-RSS_males_cut_new_spring_final$lnRSS95 <- log(RSS_males_cut_new_spring_final$`95%`)
-RSS_males_cut_new_spring_final$d_road_exp <- exp(RSS_males_cut_new_spring_final$d_road)
-
-ggplot(RSS_males_cut_new_spring_final, aes(x=d_road_exp, y=`50%`)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  geom_line()
-
-
-  
-  
-  
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-## RSS - Spring
-roaddist_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist",7]))
-newcut_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
-regencut_beta_spring<-as.numeric(as.character(results_males_spring[results_males_spring$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_spring<-mean(wolves_used_available_final_spring[wolves_used_available_final_spring$used==1,67])
-d_road_spring<-seq(min(wolves_used_available_final_spring$ln_end_roaddist), max(wolves_used_available_final_spring$ln_end_roaddist),length.out = 1000)
-RSS_males_cut_new_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
-RSS_males_cut_regen_spring<-unique(paste(results_males_spring$wolf,results_males_spring$Year))
+#winter
+road_beta_winter<-as.numeric(as.character(results_males_winter[results_males_winter$Covariates=="ln_end_roaddist",7]))
+mean_SL_winter<-mean(wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,53])
+d_road<-seq(min(wolves_used_available_final_winter$ln_end_roaddist), max(wolves_used_available_final_winter$ln_end_roaddist),length.out = 1000)
+RSS_males_road_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
 
 ##create responses for each bear
-for(i in 1:length(d_road_spring)){
-  RSS_new_spring<-(d_road_spring[i]/(d_road_spring[i]-(2*mean_SL_spring)))^(roaddist_beta_spring+(newcut_beta_spring*1))
-  RSS_regen_spring<-(d_road_spring[i]/(d_road_spring[i]-(2*mean_SL_spring)))^(roaddist_beta_spring+(regencut_beta_spring*1))
-
-  RSS_males_cut_new_spring<-as.data.frame(cbind(RSS_males_cut_new_spring,RSS_new_spring))
-  RSS_males_cut_regen_spring<-as.data.frame(cbind(RSS_males_cut_regen_spring,RSS_regen_spring))
+for(i in 1:length(d_road)){
+  RSS_road_winter<-(d_road[i]*road_beta_winter)
+  RSS_males_road_winter<-as.data.frame(cbind(RSS_males_road_winter,RSS_road_winter))
 }
-
-RSS_males_cut_new_spring[,2]<-as.numeric(as.character(RSS_males_cut_new_spring[,2]))
-RSS_males_cut_regen_spring[,2]<-as.numeric(as.character(RSS_males_cut_regen_spring[,2]))
+RSS_males_road_winter[,2]<-as.numeric(as.character(RSS_males_road_winter[,2]))
 
 average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
 b.boot<-1:200
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_spring$RSS_males_cut_new_spring),8,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_road_winter$RSS_males_road_winter),8,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_new_spring[RSS_males_cut_new_spring$RSS_males_cut_new_spring==wolf_bstrap[j],]
+    x<-RSS_males_road_winter[RSS_males_road_winter$RSS_males_road_winter==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
     mean<-colMeans(bstrap[,2:1001])
     average_new[i,]<-mean
   }
 }
-
-RSS_males_cut_new_spring2<-melt(average_new[c(1:200),])
-d_road_spring<-rep(d_road_spring,each=200)
-
-RSS_males_cut_new_spring<-cbind(RSS_males_cut_new_spring2,d_road_spring)
-
-RSS_males_cut_new_spring_final<-RSS_males_cut_new_spring %>% group_by(d_road_spring) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-##low motorised
-
-average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_spring$RSS_males_cut_regen_spring),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_spring[RSS_males_cut_regen_spring$RSS_males_cut_regen_spring==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_regen[i,]<-mean
-  }
-}
-
-RSS_males_cut_regen_spring2<-melt(average_regen[c(1:200),])
-
-RSS_males_cut_regen_spring<-cbind(RSS_males_cut_regen_spring2,d_road_spring)
-
-RSS_males_cut_regen_spring_final<-RSS_males_cut_regen_spring %>% group_by(d_road_spring) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-cutage<-c(rep("new",1000),rep("regen",1000))
-
-RSS_males_cutagesize_spring_final<-rbind(RSS_males_cut_new_spring_final,RSS_males_cut_regen_spring_final)
-RSS_males_cutagesize_spring_final<-cbind(RSS_males_cutagesize_spring_final,cutage)
-RSS_males_cutagesize_spring_final$lnRSS <- log(RSS_males_cutagesize_spring_final$`50%`)
-RSS_males_cutagesize_spring_final$lnRSS5 <- log(RSS_males_cutagesize_spring_final$`5%`)
-RSS_males_cutagesize_spring_final$lnRSS95 <- log(RSS_males_cutagesize_spring_final$`95%`)
-RSS_males_cutagesize_spring_final$lnavg <- log(RSS_males_cutagesize_spring_final$avg)
-RSS_males_cutagesize_spring_final$d_road_exp <- exp(RSS_males_cutagesize_spring_final$d_road_spring)
-RSS_males_cutagesize_spring_final$d_road_spring <- NULL
-RSS_males_cutagesize_spring_final$Season <- "Spring"
-
-ggplot(RSS_males_cutagesize_spring_final, aes(x=d_road_exp, y=lnRSS,fill=cutage,colour=cutage)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
-
-
-## RSS - Early sum
-roaddist_beta_earlysum<-as.numeric(as.character(results_males_earlysum[results_males_earlysum$Covariates=="ln_end_roaddist",7]))
-newcut_beta_earlysum<-as.numeric(as.character(results_males_earlysum[results_males_earlysum$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
-regencut_beta_earlysum<-as.numeric(as.character(results_males_earlysum[results_males_earlysum$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_earlysum<-mean(wolves_used_available_final_earlysum[wolves_used_available_final_earlysum$used==1,67])
-d_road_earlysum<-seq(min(wolves_used_available_final_earlysum$ln_end_roaddist), max(wolves_used_available_final_earlysum$ln_end_roaddist),length.out = 1000)
-RSS_males_cut_new_earlysum<-unique(paste(results_males_earlysum$wolf,results_males_earlysum$Year))
-RSS_males_cut_regen_earlysum<-unique(paste(results_males_earlysum$wolf,results_males_earlysum$Year))
-
-##create responses for each bear
-for(i in 1:length(d_road_earlysum)){
-  RSS_new_earlysum<-(d_road_earlysum[i]/(d_road_earlysum[i]-(2*mean_SL_earlysum)))^(roaddist_beta_earlysum+(newcut_beta_earlysum*1))
-  RSS_regen_earlysum<-(d_road_earlysum[i]/(d_road_earlysum[i]-(2*mean_SL_earlysum)))^(roaddist_beta_earlysum+(regencut_beta_earlysum*1))
-
-  RSS_males_cut_new_earlysum<-as.data.frame(cbind(RSS_males_cut_new_earlysum,RSS_new_earlysum))
-  RSS_males_cut_regen_earlysum<-as.data.frame(cbind(RSS_males_cut_regen_earlysum,RSS_regen_earlysum))
-}
-
-RSS_males_cut_new_earlysum[,2]<-as.numeric(as.character(RSS_males_cut_new_earlysum[,2]))
-RSS_males_cut_regen_earlysum[,2]<-as.numeric(as.character(RSS_males_cut_regen_earlysum[,2]))
-
-average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_earlysum$RSS_males_cut_new_earlysum),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_new_earlysum[RSS_males_cut_new_earlysum$RSS_males_cut_new_earlysum==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_new[i,]<-mean
-  }
-}
-
-RSS_males_cut_new_earlysum2<-melt(average_new[c(1:200),])
-d_road_earlysum<-rep(d_road_earlysum,each=200)
-
-RSS_males_cut_new_earlysum<-cbind(RSS_males_cut_new_earlysum2,d_road_earlysum)
-
-RSS_males_cut_new_earlysum_final<-RSS_males_cut_new_earlysum %>% group_by(d_road_earlysum) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-##low motorised
-
-average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_earlysum$RSS_males_cut_regen_earlysum),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_earlysum[RSS_males_cut_regen_earlysum$RSS_males_cut_regen_earlysum==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_regen[i,]<-mean
-  }
-}
-
-RSS_males_cut_regen_earlysum2<-melt(average_regen[c(1:200),])
-
-RSS_males_cut_regen_earlysum<-cbind(RSS_males_cut_regen_earlysum2,d_road_earlysum)
-
-RSS_males_cut_regen_earlysum_final<-RSS_males_cut_regen_earlysum %>% group_by(d_road_earlysum) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-cutage<-c(rep("new",1000),rep("regen",1000))
-
-RSS_males_cutagesize_earlysum_final<-rbind(RSS_males_cut_new_earlysum_final,RSS_males_cut_regen_earlysum_final)
-RSS_males_cutagesize_earlysum_final<-cbind(RSS_males_cutagesize_earlysum_final,cutage)
-RSS_males_cutagesize_earlysum_final$lnRSS <- log(RSS_males_cutagesize_earlysum_final$`50%`)
-RSS_males_cutagesize_earlysum_final$lnRSS5 <- log(RSS_males_cutagesize_earlysum_final$`5%`)
-RSS_males_cutagesize_earlysum_final$lnRSS95 <- log(RSS_males_cutagesize_earlysum_final$`95%`)
-RSS_males_cutagesize_earlysum_final$lnavg <- log(RSS_males_cutagesize_earlysum_final$avg)
-RSS_males_cutagesize_earlysum_final$d_road_exp <- exp(RSS_males_cutagesize_earlysum_final$d_road_earlysum)
-RSS_males_cutagesize_earlysum_final$d_road_earlysum <- NULL
-RSS_males_cutagesize_earlysum_final$Season <- "Early summer"
-
-ggplot(RSS_males_cutagesize_earlysum_final, aes(x=d_road_earlysum_exp, y=lnRSS,fill=cutage,colour=cutage)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
-
-
-## RSS - Late sum
-roaddist_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist",7]))
-newcut_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
-regencut_beta_latesum<-as.numeric(as.character(results_males_latesum[results_males_latesum$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_latesum<-mean(wolves_used_available_final_latesum[wolves_used_available_final_latesum$used==1,67])
-d_road_latesum<-seq(min(wolves_used_available_final_latesum$ln_end_roaddist), max(wolves_used_available_final_latesum$ln_end_roaddist),length.out = 1000)
-RSS_males_cut_new_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
-RSS_males_cut_regen_latesum<-unique(paste(results_males_latesum$wolf,results_males_latesum$Year))
-
-##create responses for each bear
-for(i in 1:length(d_road_latesum)){
-  RSS_new_latesum<-(d_road_latesum[i]/(d_road_latesum[i]-(2*mean_SL_latesum)))^(roaddist_beta_latesum+(newcut_beta_latesum*1))
-  RSS_regen_latesum<-(d_road_latesum[i]/(d_road_latesum[i]-(2*mean_SL_latesum)))^(roaddist_beta_latesum+(regencut_beta_latesum*1))
-
-  RSS_males_cut_new_latesum<-as.data.frame(cbind(RSS_males_cut_new_latesum,RSS_new_latesum))
-  RSS_males_cut_regen_latesum<-as.data.frame(cbind(RSS_males_cut_regen_latesum,RSS_regen_latesum))
-}
-
-RSS_males_cut_new_latesum[,2]<-as.numeric(as.character(RSS_males_cut_new_latesum[,2]))
-RSS_males_cut_regen_latesum[,2]<-as.numeric(as.character(RSS_males_cut_regen_latesum[,2]))
-
-average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_latesum$RSS_males_cut_new_latesum),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_new_latesum[RSS_males_cut_new_latesum$RSS_males_cut_new_latesum==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_new[i,]<-mean
-  }
-}
-
-RSS_males_cut_new_latesum2<-melt(average_new[c(1:200),])
-d_road_latesum<-rep(d_road_latesum,each=200)
-
-RSS_males_cut_new_latesum<-cbind(RSS_males_cut_new_latesum2,d_road_latesum)
-
-RSS_males_cut_new_latesum_final<-RSS_males_cut_new_latesum %>% group_by(d_road_latesum) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-##low motorised
-
-average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_latesum$RSS_males_cut_regen_latesum),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_latesum[RSS_males_cut_regen_latesum$RSS_males_cut_regen_latesum==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_regen[i,]<-mean
-  }
-}
-
-RSS_males_cut_regen_latesum2<-melt(average_regen[c(1:200),])
-
-RSS_males_cut_regen_latesum<-cbind(RSS_males_cut_regen_latesum2,d_road_latesum)
-
-RSS_males_cut_regen_latesum_final<-RSS_males_cut_regen_latesum %>% group_by(d_road_latesum) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-cutage<-c(rep("new",1000),rep("regen",1000))
-
-RSS_males_cutagesize_latesum_final<-rbind(RSS_males_cut_new_latesum_final,RSS_males_cut_regen_latesum_final)
-RSS_males_cutagesize_latesum_final<-cbind(RSS_males_cutagesize_latesum_final,cutage)
-RSS_males_cutagesize_latesum_final$lnRSS <- log(RSS_males_cutagesize_latesum_final$`50%`)
-RSS_males_cutagesize_latesum_final$lnRSS5 <- log(RSS_males_cutagesize_latesum_final$`5%`)
-RSS_males_cutagesize_latesum_final$lnRSS95 <- log(RSS_males_cutagesize_latesum_final$`95%`)
-RSS_males_cutagesize_latesum_final$lnavg <- log(RSS_males_cutagesize_latesum_final$avg)
-RSS_males_cutagesize_latesum_final$d_road_exp <- exp(RSS_males_cutagesize_latesum_final$d_road_latesum)
-RSS_males_cutagesize_latesum_final$d_road_latesum <- NULL
-RSS_males_cutagesize_latesum_final$Season <- "Late summer"
-
-ggplot(RSS_males_cutagesize_latesum_final, aes(x=d_road_latesum_exp, y=lnRSS,fill=cutage,colour=cutage)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
-
-
-## RSS - Autumn
-roaddist_beta_autumn<-as.numeric(as.character(results_males_autumn[results_males_autumn$Covariates=="ln_end_roaddist",7]))
-newcut_beta_autumn<-as.numeric(as.character(results_males_autumn[results_males_autumn$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
-regencut_beta_autumn<-as.numeric(as.character(results_males_autumn[results_males_autumn$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_autumn<-mean(wolves_used_available_final_autumn[wolves_used_available_final_autumn$used==1,67])
-d_road_autumn<-seq(min(wolves_used_available_final_autumn$ln_end_roaddist), max(wolves_used_available_final_autumn$ln_end_roaddist),length.out = 1000)
-RSS_males_cut_new_autumn<-unique(paste(results_males_autumn$wolf,results_males_autumn$Year))
-RSS_males_cut_regen_autumn<-unique(paste(results_males_autumn$wolf,results_males_autumn$Year))
-
-##create responses for each bear
-for(i in 1:length(d_road_autumn)){
-  RSS_new_autumn<-(d_road_autumn[i]/(d_road_autumn[i]-(2*mean_SL_autumn)))^(roaddist_beta_autumn+(newcut_beta_autumn*1))
-  RSS_regen_autumn<-(d_road_autumn[i]/(d_road_autumn[i]-(2*mean_SL_autumn)))^(roaddist_beta_autumn+(regencut_beta_autumn*1))
-
-  RSS_males_cut_new_autumn<-as.data.frame(cbind(RSS_males_cut_new_autumn,RSS_new_autumn))
-  RSS_males_cut_regen_autumn<-as.data.frame(cbind(RSS_males_cut_regen_autumn,RSS_regen_autumn))
-}
-
-RSS_males_cut_new_autumn[,2]<-as.numeric(as.character(RSS_males_cut_new_autumn[,2]))
-RSS_males_cut_regen_autumn[,2]<-as.numeric(as.character(RSS_males_cut_regen_autumn[,2]))
-
-average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_autumn$RSS_males_cut_new_autumn),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_new_autumn[RSS_males_cut_new_autumn$RSS_males_cut_new_autumn==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_new[i,]<-mean
-  }
-}
-
-RSS_males_cut_new_autumn2<-melt(average_new[c(1:200),])
-d_road_autumn<-rep(d_road_autumn,each=200)
-
-RSS_males_cut_new_autumn<-cbind(RSS_males_cut_new_autumn2,d_road_autumn)
-
-RSS_males_cut_new_autumn_final<-RSS_males_cut_new_autumn %>% group_by(d_road_autumn) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-##low motorised
-
-average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_autumn$RSS_males_cut_regen_autumn),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_autumn[RSS_males_cut_regen_autumn$RSS_males_cut_regen_autumn==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_regen[i,]<-mean
-  }
-}
-
-RSS_males_cut_regen_autumn2<-melt(average_regen[c(1:200),])
-
-RSS_males_cut_regen_autumn<-cbind(RSS_males_cut_regen_autumn2,d_road_autumn)
-
-RSS_males_cut_regen_autumn_final<-RSS_males_cut_regen_autumn %>% group_by(d_road_autumn) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
-            n=n())
-
-cutage<-c(rep("new",1000),rep("regen",1000))
-
-RSS_males_cutagesize_autumn_final<-rbind(RSS_males_cut_new_autumn_final,RSS_males_cut_regen_autumn_final)
-RSS_males_cutagesize_autumn_final<-cbind(RSS_males_cutagesize_autumn_final,cutage)
-RSS_males_cutagesize_autumn_final$lnRSS <- log(RSS_males_cutagesize_autumn_final$`50%`)
-RSS_males_cutagesize_autumn_final$lnRSS5 <- log(RSS_males_cutagesize_autumn_final$`5%`)
-RSS_males_cutagesize_autumn_final$lnRSS95 <- log(RSS_males_cutagesize_autumn_final$`95%`)
-RSS_males_cutagesize_autumn_final$lnavg <- log(RSS_males_cutagesize_autumn_final$avg)
-RSS_males_cutagesize_autumn_final$d_road_exp <- exp(RSS_males_cutagesize_autumn_final$d_road_autumn)
-RSS_males_cutagesize_autumn_final$d_road_autumn <- NULL
-RSS_males_cutagesize_autumn_final$Season <- "Autumn"
-
-ggplot(RSS_males_cutagesize_autumn_final, aes(x=d_road_autumn_exp, y=lnRSS,fill=cutage,colour=cutage)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
-
-
-
-## RSS - Winter
-roaddist_beta_winter<-as.numeric(as.character(results_males_winter[results_males_winter$Covariates=="ln_end_roaddist",7]))
-newcut_beta_winter<-as.numeric(as.character(results_males_winter[results_males_winter$Covariates=="ln_end_roaddist:end_cutageclass_new1",7]))
-regencut_beta_winter<-as.numeric(as.character(results_males_winter[results_males_winter$Covariates=="ln_end_roaddist:end_cutageclass_regen1",7]))
-mean_SL_winter<-mean(wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,67])
-d_road_winter<-seq(min(wolves_used_available_final_winter$ln_end_roaddist), max(wolves_used_available_final_winter$ln_end_roaddist),length.out = 1000)
-RSS_males_cut_new_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
-RSS_males_cut_regen_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
-
-##create responses for each bear
-for(i in 1:length(d_road_winter)){
-  RSS_new_winter<-(d_road_winter[i]/(d_road_winter[i]-(2*mean_SL_winter)))^(roaddist_beta_winter+(newcut_beta_winter*1))
-  RSS_regen_winter<-(d_road_winter[i]/(d_road_winter[i]-(2*mean_SL_winter)))^(roaddist_beta_winter+(regencut_beta_winter*1))
-
-  RSS_males_cut_new_winter<-as.data.frame(cbind(RSS_males_cut_new_winter,RSS_new_winter))
-  RSS_males_cut_regen_winter<-as.data.frame(cbind(RSS_males_cut_regen_winter,RSS_regen_winter))
-}
-
-RSS_males_cut_new_winter[,2]<-as.numeric(as.character(RSS_males_cut_new_winter[,2]))
-RSS_males_cut_regen_winter[,2]<-as.numeric(as.character(RSS_males_cut_regen_winter[,2]))
-
-average_new<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
-b.boot<-1:200
-for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_new_winter$RSS_males_cut_new_winter),8,replace=TRUE))
-  bstrap<-data.frame()
-  for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_new_winter[RSS_males_cut_new_winter$RSS_males_cut_new_winter==wolf_bstrap[j],]
-    x2<-x[sample(nrow(x),1),]
-    bstrap<-rbind(bstrap,x2)
-    mean<-colMeans(bstrap[,2:1001])
-    average_new[i,]<-mean
-  }
-}
-
 RSS_males_cut_new_winter2<-melt(average_new[c(1:200),])
-d_road_winter<-rep(d_road_winter,each=200)
 
-RSS_males_cut_new_winter<-cbind(RSS_males_cut_new_winter2,d_road_winter)
+d_road<-rep(d_road,each=200)
+RSS_males_cut_new_winter<-cbind(RSS_males_cut_new_winter2,d_road)
 
-RSS_males_cut_new_winter_final<-RSS_males_cut_new_winter %>% group_by(d_road_winter) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
+RSS_males_cut_new_winter_final<-RSS_males_cut_new_winter %>% group_by(d_road) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
             n=n())
+RSS_males_cut_new_winter_final$Season <- "Winter"
 
-##low motorised
+RSS_roaddist <-rbind(RSS_males_cut_new_summer_final, RSS_males_cut_new_winter_final)
 
-average_regen<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
+RSS_roaddist$lnRSS <- log(RSS_roaddist$`50%`)
+RSS_roaddist$lnRSS5 <- log(RSS_roaddist$`5%`)
+RSS_roaddist$lnRSS95 <- log(RSS_roaddist$`95%`)
+RSS_roaddist$d_road_exp <- exp(RSS_roaddist$d_road)
+
+p_RSS_roaddist <- ggplot(RSS_roaddist, aes(x=d_road_exp, y=`50%`, fill=Season, color=Season))+theme_bw() +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
+  geom_line()+coord_cartesian(xlim=c(0,3000),expand=F) +
+ labs(x="Distance to road (m)",y="ln(RSS)")+
+  theme(axis.title = element_text(size=18),
+        axis.text.x = element_text(size=16, colour = "black"),
+        axis.text.y = element_text(size=18, colour = "black"))+
+  theme(legend.position = c(0.1, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16))+
+    theme(plot.margin=unit(c(1.1,1,0.5,0.5),"cm"))
+
+
+
+####### RSS Road density ##############
+
+roaddens_beta_summer<-as.numeric(as.character(results_males_summer[results_males_summer$Covariates=="end_roaddens",7]))
+mean_SL_summer<-mean(wolves_used_available_final_summer[wolves_used_available_final_summer$used==1,53])
+roaddens<-seq(min(wolves_used_available_final_summer$end_roaddens), max(wolves_used_available_final_summer$end_roaddens),length.out = 1000)
+RSS_males_roaddens_summer<-unique(paste(results_males_summer$wolf,results_males_summer$Year))
+
+##create responses for each bear
+for(i in 1:length(roaddens)){
+  RSS_roaddens_summer<-(roaddens[i]*roaddens_beta_summer)
+  RSS_males_roaddens_summer<-as.data.frame(cbind(RSS_males_roaddens_summer,RSS_roaddens_summer))
+}
+RSS_males_roaddens_summer[,2]<-as.numeric(as.character(RSS_males_roaddens_summer[,2]))
+
+average_summer_roaddens<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
 b.boot<-1:200
 for(i in 1:length(b.boot)){
-  wolf_bstrap<-as.vector(sample(unique(RSS_males_cut_regen_winter$RSS_males_cut_regen_winter),8,replace=TRUE))
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_roaddens_summer$RSS_males_roaddens_summer),8,replace=TRUE))
   bstrap<-data.frame()
   for (j in 1:length(wolf_bstrap)){
-    x<-RSS_males_cut_regen_winter[RSS_males_cut_regen_winter$RSS_males_cut_regen_winter==wolf_bstrap[j],]
+    x<-RSS_males_roaddens_summer[RSS_males_roaddens_summer$RSS_males_roaddens_summer==wolf_bstrap[j],]
     x2<-x[sample(nrow(x),1),]
     bstrap<-rbind(bstrap,x2)
     mean<-colMeans(bstrap[,2:1001])
-    average_regen[i,]<-mean
+    average_summer_roaddens[i,]<-mean
   }
 }
+RSS_males_roaddens_summer2<-melt(average_summer_roaddens[c(1:200),])
 
-RSS_males_cut_regen_winter2<-melt(average_regen[c(1:200),])
+roaddens1<-rep(roaddens,each=200)
+RSS_males_roaddens_summer<-cbind(RSS_males_roaddens_summer2,roaddens1)
 
-RSS_males_cut_regen_winter<-cbind(RSS_males_cut_regen_winter2,d_road_winter)
-
-RSS_males_cut_regen_winter_final<-RSS_males_cut_regen_winter %>% group_by(d_road_winter) %>%
-  summarise(`5%`=quantile(value, probs=0.025, na.rm=TRUE),
-            `50%`=quantile(value, probs=0.5, na.rm=TRUE),
-            `95%`=quantile(value, probs=0.975, na.rm=TRUE),
-            avg=median(value),
+RSS_males_roaddens_summer_final<-RSS_males_roaddens_summer %>% group_by(roaddens1) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
             n=n())
+RSS_males_roaddens_summer_final$Season <- "Summer"
 
-cutage<-c(rep("new",1000),rep("regen",1000))
+roaddens_beta_winter<-as.numeric(as.character(results_males_winter[results_males_winter$Covariates=="end_roaddens",7]))
+mean_SL_winter<-mean(wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,53])
+roaddens<-seq(min(wolves_used_available_final_winter$end_roaddens), max(wolves_used_available_final_winter$end_roaddens),length.out = 1000)
+RSS_males_roaddens_winter<-unique(paste(results_males_winter$wolf,results_males_winter$Year))
 
-RSS_males_cutagesize_winter_final<-rbind(RSS_males_cut_new_winter_final,RSS_males_cut_regen_winter_final)
-RSS_males_cutagesize_winter_final<-cbind(RSS_males_cutagesize_winter_final,cutage)
-RSS_males_cutagesize_winter_final$lnRSS <- log(RSS_males_cutagesize_winter_final$`50%`)
-RSS_males_cutagesize_winter_final$lnRSS5 <- log(RSS_males_cutagesize_winter_final$`5%`)
-RSS_males_cutagesize_winter_final$lnRSS95 <- log(RSS_males_cutagesize_winter_final$`95%`)
-RSS_males_cutagesize_winter_final$lnavg <- log(RSS_males_cutagesize_winter_final$avg)
-RSS_males_cutagesize_winter_final$d_road_exp <- exp(RSS_males_cutagesize_winter_final$d_road_winter)
-RSS_males_cutagesize_winter_final$d_road_winter <- NULL
-RSS_males_cutagesize_winter_final$Season <- "Winter"
+##create responses for each bear
+for(i in 1:length(roaddens)){
+  RSS_roaddens_winter<-(roaddens[i]*roaddens_beta_winter)
+  RSS_males_roaddens_winter<-as.data.frame(cbind(RSS_males_roaddens_winter,RSS_roaddens_winter))
+}
+RSS_males_roaddens_winter[,2]<-as.numeric(as.character(RSS_males_roaddens_winter[,2]))
 
-ggplot(RSS_males_cutagesize_winter_final, aes(x=d_road_winter_exp, y=lnRSS,fill=cutage,colour=cutage)) +
+average_winter_roaddens<-data.frame(matrix(NA, nrow = 200, ncol = 1000))
+b.boot<-1:200
+for(i in 1:length(b.boot)){
+  wolf_bstrap<-as.vector(sample(unique(RSS_males_roaddens_winter$RSS_males_roaddens_winter),8,replace=TRUE))
+  bstrap<-data.frame()
+  for (j in 1:length(wolf_bstrap)){
+    x<-RSS_males_roaddens_winter[RSS_males_roaddens_winter$RSS_males_roaddens_winter==wolf_bstrap[j],]
+    x2<-x[sample(nrow(x),1),]
+    bstrap<-rbind(bstrap,x2)
+    mean<-colMeans(bstrap[,2:1001])
+    average_winter_roaddens[i,]<-mean
+  }
+}
+RSS_males_roaddens_winter2<-melt(average_winter_roaddens[c(1:200),])
+
+roaddens1<-rep(roaddens,each=200)
+RSS_males_roaddens_winter<-cbind(RSS_males_roaddens_winter2,roaddens1)
+
+RSS_males_roaddens_winter_final<-RSS_males_roaddens_winter %>% group_by(roaddens1) %>%
+  summarise(`5%`=quantile(value, probs=0.025),
+            `50%`=quantile(value, probs=0.5),
+            `95%`=quantile(value, probs=0.975),
+            avg=mean(value),
+            n=n())
+RSS_males_roaddens_winter_final$Season <- "winter"
+RSS_roaddens <-rbind(RSS_males_roaddens_summer_final, RSS_males_roaddens_winter_final)
+RSS_roaddens$lnRSS <- log(RSS_roaddens$`50%`)
+RSS_roaddens$lnRSS5 <- log(RSS_roaddens$`5%`)
+RSS_roaddens$lnRSS95 <- log(RSS_roaddens$`95%`)
+
+p_RSS_roaddens<- ggplot(RSS_roaddens, aes(x=roaddens1, y=`50%`, fill=Season, color=Season))+theme_bw() +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
   geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,1000)+ylim(0,0.5)
-
-
-RSS_males_cutagesize_all_final <- rbind(RSS_males_cutagesize_spring_final,RSS_males_cutagesize_earlysum_final,RSS_males_cutagesize_latesum_final,RSS_males_cutagesize_autumn_final,RSS_males_cutagesize_winter_final)
-RSS_males_cutagesize_all_final$Season <- factor(RSS_males_cutagesize_all_final$Season, levels = c("Spring", "Early summer", "Late summer", "Autumn", "Winter"))
-RSS_males_newcut_all_final <- RSS_males_cutagesize_all_final[RSS_males_cutagesize_all_final$cutage=="new",]
-colnames(RSS_males_newcut_all_final)[11] <- "Distance to road (m)"
-
-newRSS <- ggplot(RSS_males_newcut_all_final, aes(x=`Distance to road (m)`, y=lnRSS,fill=Season,colour=Season)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)+
+ labs(x=expression("Road density"~(km/km^2)),y="ln(RSS)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(xlim=c(0,5.5), expand=F)+
+  theme(legend.position = c(0.1, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16))
 
-RSS_males_regencut_all_final <- RSS_males_cutagesize_all_final[RSS_males_cutagesize_all_final$cutage=="regen",]
-colnames(RSS_males_regencut_all_final)[11] <- "Distance to road (m)"
-
-regenRSS <- ggplot(RSS_males_regencut_all_final, aes(x=`Distance to road (m)`, y=lnRSS,fill=Season,colour=Season)) +
-  geom_line() +
-  geom_ribbon(aes(ymin=lnRSS5, ymax=lnRSS95), alpha=0.2)+xlim(0,3000)+ylim(-0.1,0.5)+
-  theme(axis.title = element_text(size=18),
-        axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))
-
-RSSplots <- plot_grid(
-  newRSS + theme(legend.position="none"),
-  regenRSS + theme(legend.position="none"),
+prow3 <- plot_grid(
+  p_RSS_roaddist,
+  p_RSS_roaddens,
   align = 'vh',
-  labels = c("     A) New cut", "B) Regenerating cut"),
-  hjust = -0.5,
+  hjust=-0.5,
   vjust=2,
   nrow = 1
 )
-RSSplots
-
-RSSlegend <- get_legend(
-  # create some space to the left of the legend
-  newRSS + theme(legend.box.margin = margin(0, 0, 0, 12),legend.text=element_text(size=16), legend.title=element_text(size=18))
-)
-RSSplot <- plot_grid(RSSplots,RSSlegend,rel_widths = c(3, .4))
-RSSplot
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\RSS.tiff", plot=RSSplot, units="in", width=16, height=8, dpi=600, compression = 'lzw')
+prow3
+  
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\RSS.tiff", plot=prow3, units="in", width=16, height=8, dpi=600, compression = 'lzw')
