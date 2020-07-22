@@ -17,7 +17,7 @@ lapply(c("forcats","viridis","stringr","fastDummies","car","matrixStats","ppcor"
 setwd("D:/OneDrive/Documents/Academic/PhD/Publications/iSSA/Data/")
 
 ##set seed
-set.seed(58)
+set.seed(1)
 
 ####################### Making available tracks for iSSA #########################
 
@@ -120,6 +120,8 @@ usedall <- wolves_used_available_final[wolves_used_available_final$case=="TRUE",
 p_allsl <- ggplot(usedall,aes(sl, fill = factor(season))) + geom_density(alpha = 0.4)+ labs(fill = "Wolf")+labs(x= "Step length", y = "Density")
 p_allsl
 rm(usedall)
+
+
 ####################### Spatial preparation and covariate extraction #########################
 
 #making steps into spatialpointsdataframe (from end points)
@@ -424,8 +426,21 @@ wolves_used_available_final$end_edgeout <- wolves_used_available_final$end_edgeo
 wolves_used_available_final$ln_end_edgeout <- log(wolves_used_available_final$end_edgeout+0.1)
 wolves_used_available_final$ln_end_edgein <- log(wolves_used_available_final$end_edgein+0.1)
 
-wolves_used_available_final$hour <- as.numeric(str_sub(wolves_used_available_final$t2,-8,-7))
+
+wolves_used_available_final$hour<-format(strptime(as.character(wolves_used_available_final$t1), "%Y-%m-%d %H:%M"),"%H")
+wolves_used_available_final$hour <- as.numeric(wolves_used_available_final$hour)
 wolves_used_available_final$sinhour <- sin((4*pi*(wolves_used_available_final$hour-6))/24)
+
+plot(wolves_used_available_final$hour,wolves_used_available_final$sinhour)
+
+steps <- wolves_used_available_final %>% 
+  group_by(season,hour) %>% 
+  summarise(mean_group = median(sl))
+
+ggplot(steps,aes(x=hour,y=mean_group,color=season))+geom_point()
+
+
+
 
 #remove weird wolf
 wolves_used_available_final <- wolves_used_available_final[!(wolves_used_available_final$name=="26818a" & wolves_used_available_final$season=="Winter"),]
@@ -435,9 +450,9 @@ wolves_used_available_final <- wolves_used_available_final[!(wolves_used_availab
 correlation <- cor(wolves_used_available_final[c(19:22,30:54,60:63,65)])
 write.csv(correlation,'wolves_vars_correlation.csv')
 
-#-----------------------------------
+-----------------------------------
 ### RUN MODELS ###
-#-----------------------------------
+-----------------------------------
 
 #organize/scale data
 year<-as.vector(2018:2020)
@@ -633,7 +648,6 @@ AIC_results_ordered$Model <- factor(AIC_results_ordered$Model, levels = c("Prey"
 
 AIC_results_ordered$Season <- factor(AIC_results_ordered$Season, levels = c("Summer","Winter"))
 
-
 AIC_distributions <- ggplot(aes(Model,AIC_weights), data = AIC_results_ordered, width=2) + 
   geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 1,
                outlier.shape = NA)+scale_fill_grey()+labs(y="AIC weights")+
@@ -658,9 +672,9 @@ AIC_distributions
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\AIC_Weights.tiff", units="in", width=14, height=8, dpi=300, compression = 'lzw')
 
----------------------------------------------------
+#---------------------------------------------------
 ########## Beta Coefficient Bootstrapping #########
----------------------------------------------------
+#---------------------------------------------------
 
 #Beta coeffs - males
 wolf_sex<-read.csv("wolf_sex.csv")
@@ -673,12 +687,12 @@ results_males_summer <-results_sex_age[results_sex_age$Season=="Summer"&results_
 results_males_winter <-results_sex_age[results_sex_age$Season=="Winter"&results_sex_age$Model=="Global"&results_sex_age$Sex=="M",]
 
 #bootstrap spring
-b.boot<-numeric(200)
+b.boot<-numeric(2000)
 average<-vector()
 results_males_summer$beta<-as.numeric(as.character(results_males_summer$beta))
 results_males_summer$SE<-as.numeric(as.character(results_males_summer$SE))
 covariates_summer<-unique(results_males_summer$Covariates)
-results_males_summer_betas<-as.data.frame(setNames(replicate(length(covariates_summer),numeric(200),simplify=F),covariates_summer))
+results_males_summer_betas<-as.data.frame(setNames(replicate(length(covariates_summer),numeric(2000),simplify=F),covariates_summer))
 
 for(n in 1:ncol(results_males_summer_betas)){
   for(j in 1:length(b.boot)){
@@ -700,12 +714,12 @@ for(n in 1:ncol(results_males_summer_betas)){
 assign(paste("pop_males_summer"),results_males_summer_betas)
 
 #bootstrap winter
-b.boot<-numeric(200)
+b.boot<-numeric(2000)
 average<-vector()
 results_males_winter$beta<-as.numeric(as.character(results_males_winter$beta))
 results_males_winter$SE<-as.numeric(as.character(results_males_winter$SE))
 covariates_winter<-unique(results_males_winter$Covariates)
-results_males_winter_betas<-as.data.frame(setNames(replicate(length(covariates_winter),numeric(200),simplify=F),covariates_winter))
+results_males_winter_betas<-as.data.frame(setNames(replicate(length(covariates_winter),numeric(2000),simplify=F),covariates_winter))
 
 for(n in 1:ncol(results_males_winter_betas)){
   for(j in 1:length(b.boot)){
@@ -741,7 +755,7 @@ covariate_summer<-as.vector(gsub(".2","",covariate_summer)) ##create covariate c
 covariate_summer<-as.vector(gsub(".3","",covariate_summer)) ##create covariate column without .1 next to covariate names
 movement_betas_summer_long<-as.data.frame(cbind(movement_betas_summer_long$values,covariate_summer)) # bind together
 colnames(movement_betas_summer_long)<-c("Beta","Covariate") ## rename columns
-Reproductive_class_summer<-as.vector(c(rep("male",1800),rep("female",0))) ##create sex column
+Reproductive_class_summer<-as.vector(c(rep("male",16000),rep("female",0))) ##create sex column
 movement_betas_summer_long<-cbind(movement_betas_summer_long,Reproductive_class_summer) ##bind with rest of table
 movement_betas_summer_long$Beta<-as.numeric(as.character(movement_betas_summer_long$Beta)) ##convert beta to numeric
 movement_betas_summer_long$Reproductive_class_summer<-factor(movement_betas_summer_long$Reproductive_class_summer,levels = c("male"))
@@ -771,7 +785,7 @@ covariate_winter<-as.vector(gsub(".2","",covariate_winter)) ##create covariate c
 covariate_winter<-as.vector(gsub(".3","",covariate_winter)) ##create covariate column without .1 next to covariate names
 movement_betas_winter_long<-as.data.frame(cbind(movement_betas_winter_long$values,covariate_winter)) # bind together
 colnames(movement_betas_winter_long)<-c("Beta","Covariate") ## rename columns
-Reproductive_class_winter<-as.vector(c(rep("male",1800),rep("female",0))) ##create sex column
+Reproductive_class_winter<-as.vector(c(rep("male",16000),rep("female",0))) ##create sex column
 movement_betas_winter_long<-cbind(movement_betas_winter_long,Reproductive_class_winter) ##bind with rest of table
 movement_betas_winter_long$Beta<-as.numeric(as.character(movement_betas_winter_long$Beta)) ##convert beta to numeric
 movement_betas_winter_long$Reproductive_class_winter<-factor(movement_betas_winter_long$Reproductive_class_winter,levels = c("male"))
@@ -812,9 +826,9 @@ write.table(betas_movement, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publ
 
 ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\movement betas.tiff", plot=movement_annual, units="in", width=16, height=8, dpi=600, compression = 'lzw')
 
------------------------------------
+#-----------------------------------
 ####### HABITAT BETAS ########
------------------------------------
+#-----------------------------------
   
 ########## summer habitat betas ###########
 
@@ -826,7 +840,7 @@ covariate_summer<-as.vector(gsub(".2","",covariate_summer)) ##create covariate c
 covariate_summer<-as.vector(gsub(".3","",covariate_summer)) ##create covariate column without .1 next to covariate names
 habitat_betas_summer_long<-as.data.frame(cbind(habitat_betas_summer_long$values,covariate_summer)) # bind together
 colnames(habitat_betas_summer_long)<-c("Beta","Covariate") ## rename columns
-Reproductive_class_summer<-as.vector(c(rep("male",3000),rep("female",0))) ##create sex column
+Reproductive_class_summer<-as.vector(c(rep("male",28000),rep("female",0))) ##create sex column
 habitat_betas_summer_long<-cbind(habitat_betas_summer_long,Reproductive_class_summer) ##bind with rest of table
 habitat_betas_summer_long$Beta<-as.numeric(as.character(habitat_betas_summer_long$Beta)) ##convert beta to numeric
 habitat_betas_summer_long$Reproductive_class_summer<-factor(habitat_betas_summer_long$Reproductive_class_summer,levels = c("male"))
@@ -835,16 +849,16 @@ habitat_betas_summer_long$Reproductive_class_summer<-factor(habitat_betas_summer
 #replace covariate names
 levels(habitat_betas_summer_long$Covariate)
 habitat_betas_summer_long$Covariate<-as.character(habitat_betas_summer_long$Covariate)
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_new","New cut") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_new.end_sizeha","New cut:Cut size") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_regen","Regen cut") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_cutageclass_regen.end_sizeha","Regen cut:Cut size") #replaces text
 habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
 habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_MixedFores","Mixed forest") #replaces text
-habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Pin","Pine") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Coniferous","Coniferous") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Deciduous","Deciduous") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_MixedForest","Mixed forest") #replaces text
+habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_landcover_Pine","Pine") #replaces text
 habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_NDVI","NDVI") #replaces text
 habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="end_roaddens","Road density") #replaces text
 habitat_betas_summer_long$Covariate<-replace(habitat_betas_summer_long$Covariate,habitat_betas_summer_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
@@ -875,7 +889,7 @@ covariate_winter<-as.vector(gsub(".2","",covariate_winter)) ##create covariate c
 covariate_winter<-as.vector(gsub(".3","",covariate_winter)) ##create covariate column without .1 next to covariate names
 habitat_betas_winter_long<-as.data.frame(cbind(habitat_betas_winter_long$values,covariate_winter)) # bind together
 colnames(habitat_betas_winter_long)<-c("Beta","Covariate") ## rename columns
-Reproductive_class_winter<-as.vector(c(rep("male",3000),rep("female",0))) ##create sex column
+Reproductive_class_winter<-as.vector(c(rep("male",28000),rep("female",0))) ##create sex column
 habitat_betas_winter_long<-cbind(habitat_betas_winter_long,Reproductive_class_winter) ##bind with rest of table
 habitat_betas_winter_long$Beta<-as.numeric(as.character(habitat_betas_winter_long$Beta)) ##convert beta to numeric
 habitat_betas_winter_long$Reproductive_class_winter<-factor(habitat_betas_winter_long$Reproductive_class_winter,levels = c("male"))
@@ -883,16 +897,16 @@ habitat_betas_winter_long$Reproductive_class_winter<-factor(habitat_betas_winter
 #replace covariate names
 levels(habitat_betas_winter_long$Covariate)
 habitat_betas_winter_long$Covariate<-as.character(habitat_betas_winter_long$Covariate)
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne","New cut") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_ne.end_sizeha","New cut:Cut size") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege","Regen cut") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_rege.end_sizeha","Regen cut:Cut size") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_new","New cut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_new.end_sizeha","New cut:Cut size") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_regen","Regen cut") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_cutageclass_regen.end_sizeha","Regen cut:Cut size") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgein","ln(Edge in)") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_edgeout","ln(Edge out)") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Coniferou","Coniferous") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Deciduou","Deciduous") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_MixedFores","Mixed forest") #replaces text
-habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Pin","Pine") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Coniferous","Coniferous") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Deciduous","Deciduous") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_MixedForest","Mixed forest") #replaces text
+habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_landcover_Pine","Pine") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_NDVI","NDVI") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="end_roaddens","Road density") #replaces text
 habitat_betas_winter_long$Covariate<-replace(habitat_betas_winter_long$Covariate,habitat_betas_winter_long$Covariate=="ln_end_roaddist","ln(Road dist)") #replaces text
