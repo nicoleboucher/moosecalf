@@ -1,0 +1,376 @@
+# Save image
+save.image(file='wolf_RSF.RData')
+load(file='wolf_RSF.RData')
+
+### LOAD PACKAGES ###
+lapply(c("forcats","viridis","stringr","fastDummies","car","matrixStats","ppcor","geosphere","MODIS","MODIStsp","velox","rgeos","data.table","plyr","raster", "lubridate", "amt", "magrittr", "readr", "dplyr", "maptools", "spatstat", "tidyr", "ggplot2", "survival", "cowplot", "rgeos", "rgdal", "sf", "sp", "MASS", "readr", "boot", "reshape"), require, character.only = TRUE)
+library(lme4)
+library(AICcmodavg)
+library(adehabitatHR)
+
+##set wd
+setwd("D:/OneDrive/Documents/Academic/PhD/Publications/iSSA/Data/")
+
+##set seed
+set.seed(1)
+
+#load in data
+wolf_used_final<-read.csv("wolf_alltelemetry.csv")
+
+#check for missing values, no action if TRUE
+all(complete.cases(wolf_used_final))
+
+#parse date and time and create time stamps
+wolf_used_final$hour <- format(strptime(wolf_used_final$LMT_Time, "%I:%M:%S %p"),"%H:%M:%S")
+wolf_used_final$Hour <- substr(wolf_used_final$hour, start = 1, stop = 2)
+wolf_used_final$ts <- as.POSIXct(ymd(wolf_used_final$LMT_Date) + hms(wolf_used_final$hour))
+wolf_used_final <- wolf_used_final[,-c(6,7)]
+
+#limit between Jan 1 - Jun 30
+wolf_used_final$month <- month(wolf_used_final$ts)
+wolf_used_final <- wolf_used_final[!(wolf_used_final$month >6 & wolf_used_final$month <= 12),]
+
+#create spatialpointsdataframe for used locations
+crs <- CRS("+proj=longlat +datum=WGS84")
+wolf_locations <- SpatialPointsDataFrame(wolf_used_final[,c(5,4)], wolf_used_final, proj4string=crs)
+wolf_locations$Used <- 1
+wolf_locations@data$julian.day <- yday(wolf_locations@data$ts)
+wolf_locations <- spTransform(wolf_locations, CRS="+init=epsg:3005")
+
+#create random points within PGS study area
+PGS <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Study Areas", layer="PGS_buffer_area")
+PGS <- spTransform(PGS, CRS="+init=epsg:3005")
+locations <- spsample(PGS, nrow(wolf_used_final), type = "random")
+locations<-SpatialPointsDataFrame(locations@coords,data.frame(ID="Available",LMT_Date=wolf_locations$LMT_Date, LMT_Time=wolf_locations$LMT_Time, Latitude=locations@coords[,2], Longitude=locations@coords[,1], ts=wolf_locations$ts, month=wolf_locations$month,Used=0, julian.day=wolf_locations$julian.day))
+proj4string(locations) <- CRS("+init=epsg:3005")
+
+#combine used (1) and available (0) points
+wolf_sp <-spRbind(wolf_locations,locations)
+wolf_used_available_final <- rbind(wolf_locations@data, locations@data)
+wolf_sp$year <- year(wolf_sp$ts)
+wolf_used_available_final$year <- year(wolf_used_available_final$ts)
+rm(wolf_locations,wolf_used_final)
+
+################ EXTRACT ENVIRONMENTAL ########################
+
+#load cut rasters
+NDVI2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVImonth\\NDVI2017.tif")
+NDVI2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVImonth\\NDVI2018.tif")
+NDVI2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVImonth\\NDVI2019.tif")
+NDVI2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVImonth\\NDVI2020.tif")
+
+#transform to raster crs
+wolf_NDVI_sp <- spTransform(wolf_sp,crs(NDVI2017))
+
+#extract data based on year
+NDVI <- if (wolf_NDVI_sp$year == "2018"){as.numeric(raster::extract(NDVI2018,wolf_NDVI_sp))
+} else if (wolf_NDVI_sp$year == "2019"){as.numeric(raster::extract(NDVI2019,wolf_NDVI_sp))
+} else if (wolf_NDVI_sp$year == "2020"){as.numeric(raster::extract(NDVI2020,wolf_NDVI_sp))
+      } else (print("NA"))
+
+#add to data
+wolf_used_available_final <- cbind(wolf_used_available_final,NDVI)
+
+#apply scaling factor and remove NAs
+wolf_used_available_final$NDVI <- wolf_used_available_final$NDVI*0.0001
+wolf_used_available_final$NDVI[is.na(wolf_used_available_final$NDVI)] = mean(wolf_used_available_final$NDVI, na.rm=TRUE)
+rm(wolf_NDVI_sp)
+
+############### Land Cover ####################
+
+#load in data
+VRI <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\VRI\\LANDCOVER_FINAL_PGS_RAST_230.tif")
+lookup <- read.csv("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Landcover\\VRI_TABLE.csv")
+
+#substitute object ID with landcover
+VRI <- subs(VRI,lookup,by="OBJECTID_1",which="Landcover")
+VRI <- as.factor(VRI)
+
+#project raster
+VRI <- projectRaster(VRI, crs="+init=epsg:3005")
+
+#extract VRI
+wolf_used_available_final$landcover <- as.factor(round(raster::extract(VRI,wolf_sp)))
+
+#replace levels
+levels(wolf_used_available_final$landcover) <- c("Coniferous","Deciduous","MixedForest","Nonforest","Pine")
+
+#change into dummies
+wolf_used_available_final<-dummy_cols(wolf_used_available_final, select_columns="landcover",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+rm(lookup)
+
+#make a factor
+wolf_used_available_final$landcover_Coniferous <- as.factor(wolf_used_available_final$landcover_Coniferous)
+wolf_used_available_final$landcover_Deciduous <- as.factor(wolf_used_available_final$landcover_Deciduous)
+wolf_used_available_final$landcover_Pine <- as.factor(wolf_used_available_final$landcover_Pine)
+wolf_used_available_final$landcover_MixedForest <- as.factor(wolf_used_available_final$landcover_MixedForest)
+wolf_used_available_final$landcover_Nonforest <- as.factor(wolf_used_available_final$landcover_Nonforest)
+
+############### Road density ######################
+
+#load road density data
+roaddens <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\PGS_ROADDENS_FINAL.tif")
+
+#extract roaddens
+wolf_used_available_final$roaddens <- raster::extract(roaddens,wolf_sp)
+
+############# Distance to Road ########################
+
+#load distance to road data
+roaddist <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\EucDist_road230.tif")
+
+#extract roaddist
+wolf_used_available_final$roaddist <- as.numeric(raster::extract(roaddist,wolf_sp))
+wolf_used_available_final$ln_roaddist <- log(wolf_used_available_final$roaddist+0.01)
+
+############# Cut blocks ###############################
+
+#load cut rasters
+cutage2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTAGE_2017.tif")
+cutage2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTAGE_2018.tif")
+cutage2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTAGE_2019.tif")
+cutage2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTAGE_2020.tif")
+cutsize2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTSIZE_2017.tif")
+cutsize2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTSIZE_2018.tif")
+cutsize2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTSIZE_2019.tif")
+cutsize2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\CUTSIZE_2020.tif")
+
+#extract data based on year
+wolf_sp@data$year <- year(wolf_sp@data$LMT_Date)
+cutageclass <- if (wolf_sp$year == "2018"){as.numeric(raster::extract(cutage2018,wolf_sp))
+} else if (wolf_sp$year == "2019"){as.numeric(raster::extract(cutage2019,wolf_sp))
+} else if (wolf_sp$year == "2020"){as.numeric(raster::extract(cutage2020,wolf_sp))
+      } else (print("NA"))
+sizeha <- if (wolf_sp$year == "2018"){as.numeric(raster::extract(cutsize2018,wolf_sp))
+} else if (wolf_sp$year == "2019"){as.numeric(raster::extract(cutsize2019,wolf_sp))
+} else if (wolf_sp$year == "2020"){as.numeric(raster::extract(cutsize2020,wolf_sp))
+      } else (print("NA"))
+
+#combine with the dataset
+wolf_used_available_final <- cbind(wolf_used_available_final,cutageclass,sizeha)
+wolf_used_available_final$sizeha[is.na(wolf_used_available_final$sizeha)] = 0
+wolf_used_available_final$cutageclass[is.na(wolf_used_available_final$cutageclass)] = "Uncut"
+wolf_used_available_final$cutageclass <- as.factor(wolf_used_available_final$cutageclass)
+wolf_used_available_final$cutageclass <- revalue(wolf_used_available_final$cutageclass, c("1"="regen", "2"="new","3"="old"))
+
+#make dummies for cut age classes
+wolf_used_available_final<-dummy_cols(wolf_used_available_final, select_columns="cutageclass",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+rm(cutageclass,cutsize,cutage2018.vx,cutage2019.vx,cutage2020.vx,cutsize2018.vx,cutsize2019.vx,cutsize2020.vx)
+
+#################### Edge In #################################
+
+#load distance to forest edge when in forest rasters
+edgein2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2017_230.tif")
+edgein2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2018_230.tif")
+edgein2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2019_230.tif")
+edgein2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2020_230.tif")
+
+#extract at start of step
+wolf_used_available_final$edgein <- if (wolf_sp$year == "2018"){raster::extract(edgein2018,wolf_sp)
+} else if (wolf_sp$year == "2019"){raster::extract(edgein2019,wolf_sp)
+} else if (wolf_sp$year == "2020"){raster::extract(edgein2020,wolf_sp) #change when 2020 cuts available
+      } else (print("NA"))
+
+wolf_used_available_final$edgein[is.na(wolf_used_available_final$edgein)] = mean(wolf_used_available_final$edgein, na.rm=TRUE)
+wolf_used_available_final$ln_edgein <- log(wolf_used_available_final$edgein+0.01)
+
+#################### Edge Out #################################
+
+#load distance to forest edge when outside forest rasters
+edgeout2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2017_230.tif")
+edgeout2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2018_230.tif")
+edgeout2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2019_230.tif")
+edgeout2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2020_230.tif")
+
+#extract at start of step
+wolf_used_available_final$edgeout <- if (wolf_sp$year == "2018"){raster::extract(edgeout2018,wolf_sp)
+} else if (wolf_sp$year == "2019"){raster::extract(edgeout2019,wolf_sp)
+} else if (wolf_sp$year == "2020"){raster::extract(edgeout2020,wolf_sp)
+      } else (print("NA"))
+wolf_used_available_final$ln_edgeout <- log(wolf_used_available_final$edgeout+0.01)
+rm(edgeout2018.vx, edgeout2019.vx,edgeout2020.vx)
+
+wolf_used_available_final$edge <- wolf_used_available_final$edgein+wolf_used_available_final$edgeout
+
+#################### Distance to water  ########
+
+#import raster
+water <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Water\\dist_water230m.tif")
+
+#extract roaddens at start of step
+wolf_used_available_final$water <- raster::extract(water,wolf_sp)
+wolf_used_available_final$ln_water <- log(wolf_used_available_final$water+0.01)
+
+######## resource selection function #############
+
+model <- glm(Used~landcover_Pine+landcover_Deciduous+landcover_MixedForest+landcover_Coniferous+scale(ln_water)+scale(poly(edge,2))+scale(NDVI)+cutageclass_new+cutageclass_regen+cutageclass_new:scale(sizeha)+cutageclass_regen:scale(sizeha)+scale(roaddens)+scale(ln_roaddist),family=binomial, data=wolf_used_available_final)
+#model <- glm(Used~landcover_Pine+landcover_Deciduous+landcover_MixedForest+landcover_Coniferous+ln_water+edge+I(edge^2)+NDVI+cutageclass_new+cutageclass_regen+cutageclass_new:sizeha+cutageclass_regen:sizeha+roaddens+ln_roaddist,family=binomial, data=wolf_used_available_final)
+
+summary(model)
+vif(model)
+
+cv.err <- cv.glm(wolf_used_available_final,model, K=10)
+summary(cv.err)
+
+df <- wolf_used_available_final
+folds  <- cut(seq(1,nrow(wolf_used_available_final)),breaks=10,labels=FALSE)
+result <- list()
+
+for(i in 1:10){
+  testIndexes <- which(folds==i,arr.ind=TRUE)
+  testData    <- df[testIndexes, ]
+  trainData   <- df[-testIndexes, ]
+  model       <- glm(Used~landcover_Pine+landcover_Deciduous+landcover_MixedForest+landcover_Coniferous+ln_water+poly(edge,2)+NDVI+cutageclass_new+cutageclass_regen+cutageclass_new:sizeha+cutageclass_regen:sizeha+roaddens+ln_roaddist,family=binomial,data=trainData)
+  result[[i]] <- predict(model, testData) 
+}
+
+########### Create rasters to feed into raster stack
+
+###VRI
+coniferous <- (VRI$Landcover==1)
+deciduous <-  (VRI$Landcover==2)
+mixedforest <-  (VRI$Landcover==3)
+pine <-  (VRI$Landcover==5)
+
+#roads
+lnroaddist <- log(roaddist+0.01)
+
+#cutblocks c("1"="regen", "2"="new","3"="old")
+newcut2018 <- (cutage2018$CUTAGE_2018 ==2)
+newcut2019 <- (cutage2019$CUTAGE_2019 ==2)
+newcut2020 <- (cutage2020$CUTAGE_2020 ==2)
+
+regencut2018 <- (cutage2018$CUTAGE_2018 ==1)
+regencut2019 <- (cutage2019$CUTAGE_2019 ==1)
+regencut2020 <- (cutage2020$CUTAGE_2020 ==1)
+
+#water
+lnwater <- log(water+0.01)
+
+#ndvi
+ndvi2017 <- projectRaster(NDVI2017, crs="+init=epsg:3005")
+ndvi2018 <- projectRaster(NDVI2018, crs="+init=epsg:3005")
+ndvi2019 <- projectRaster(NDVI2019, crs="+init=epsg:3005")
+ndvi2020 <- projectRaster(NDVI2020, crs="+init=epsg:3005")
+
+#edge
+edge2018 <- edgein2018+edgeout2018
+edge2019 <- edgein2019+edgeout2019
+edge2020 <- edgein2020+edgeout2020
+
+#crop everything to PGS
+NDVI2017 <- crop(ndvi2017,roaddens,snap='near')
+NDVI2018 <- crop(ndvi2018,roaddens,snap='near')
+NDVI2019 <- crop(ndvi2019,roaddens,snap='near')
+NDVI2020 <- crop(ndvi2020,roaddens,snap='near')
+coniferous <- crop(coniferous,roaddens,snap='near')
+deciduous <- crop(deciduous,roaddens,snap='near')
+mixedforest <- crop(mixedforest,roaddens,snap='near')
+pine <- crop(pine,roaddens,snap='near')
+newcut2018 <- crop(newcut2018,roaddens,snap='near')
+newcut2019 <- crop(newcut2019,roaddens,snap='near')
+newcut2020 <- crop(newcut2020,roaddens,snap='near')
+regencut2018 <- crop(regencut2018,roaddens,snap='near')
+regencut2019 <- crop(regencut2019,roaddens,snap='near')
+regencut2020 <- crop(regencut2020,roaddens,snap='near')
+cutsize2018 <- crop(cutsize2018,roaddens,snap='near')
+cutsize2019 <- crop(cutsize2019,roaddens,snap='near')
+cutsize2020 <- crop(cutsize2020,roaddens,snap='near')
+lnroaddist <- crop(lnroaddist,roaddens,snap='near')
+edge2018 <- crop(edge2018,roaddens,snap='near')
+edge2019 <- crop(edge2019,roaddens,snap='near')
+edge2020 <- crop(edge2020,roaddens,snap='near')
+lnwater <- crop(lnwater,roaddens,snap='near')
+
+#make zeros from NA
+newcut2017[is.na(newcut2017[])] <- 0
+newcut2018[is.na(newcut2018[])] <- 0
+newcut2019[is.na(newcut2019[])] <- 0
+newcut2020[is.na(newcut2020[])] <- 0
+regencut2018[is.na(regencut2018[])] <- 0
+regencut2019[is.na(regencut2019[])] <- 0
+regencut2020[is.na(regencut2020[])] <- 0
+cutsize2018[is.na(cutsize2018[])] <- 0
+cutsize2019[is.na(cutsize2019[])] <- 0
+cutsize2020[is.na(cutsize2020[])] <- 0
+
+
+#fix extent...
+NDVI2017<- resample(NDVI2017,roaddens)
+NDVI2018<- resample(NDVI2018,roaddens)
+NDVI2019<-resample(NDVI2019,roaddens)
+NDVI2020<-resample(NDVI2020,roaddens)
+coniferous<-resample(coniferous,roaddens)
+deciduous<-resample(deciduous,roaddens)
+mixedforest<-resample(mixedforest,roaddens)
+pine<-resample(pine,roaddens)
+newcut2018<-resample(newcut2018,roaddens)
+newcut2019<-resample(newcut2019,roaddens)
+newcut2020<-resample(newcut2020,roaddens)
+regencut2018<-resample(regencut2018,roaddens)
+regencut2019<-resample(regencut2019,roaddens)
+regencut2020<-resample(regencut2020,roaddens)
+cutsize2018<-resample(cutsize2018,roaddens)
+cutsize2019<-resample(cutsize2019,roaddens)
+cutsize2020<-resample(cutsize2020,roaddens)
+roaddens<-resample(roaddens,roaddens)
+lnroaddist<-resample(lnroaddist,roaddens)
+edge2018<-resample(edge2018,roaddens)
+edge2019<-resample(edge2019,roaddens)
+edge2020<-resample(edge2020,roaddens)
+lnwater<-resample(lnwater,roaddens)
+
+#edge
+edge2018 <- scale(edge2018,scale=TRUE)
+edge2019 <- scale(edge2019,scale=TRUE)
+edge2020 <- scale(edge2020,scale=TRUE)
+lnwater <- scale(lnwater,scale=TRUE)
+lnroaddist <- scale(lnroaddist,scale=TRUE)
+roaddens <- scale(roaddens,scale=TRUE)
+cutsize2018 <- scale(cutsize2018,scale=TRUE)
+cutsize2019 <- scale(cutsize2019,scale=TRUE)
+cutsize2020 <- scale(cutsize2020,scale=TRUE)
+NDVI2017 <- scale(NDVI2017,scale=TRUE)
+NDVI2018 <- scale(NDVI2018,scale=TRUE)
+NDVI2019 <- scale(NDVI2019,scale=TRUE)
+NDVI2020 <- scale(NDVI2020,scale=TRUE)
+
+#2017
+
+#2018
+stack2018 <- raster::stack(NDVI2018,coniferous,mixedforest,deciduous,pine,newcut2018, regencut2018,cutsize2018,roaddens,lnroaddist,edge2018,lnwater)
+names(stack2018) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+
+#2019
+stack2019 <- raster::stack(NDVI2019,coniferous,mixedforest,deciduous,pine,newcut2019, regencut2019,cutsize2019,roaddens,lnroaddist,edge2019,lnwater)
+names(stack2019) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+
+#2020
+stack2020 <- raster::stack(NDVI2020,coniferous,mixedforest,deciduous,pine,newcut2020, regencut2020,cutsize2020,roaddens,lnroaddist,edge2020,lnwater)
+names(stack2020) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+
+#make predictions
+predict1 <- exp(pine*coefs["landcover_Pine1"]+deciduous*coefs["landcover_Deciduous1"]+coniferous*coefs["landcover_Coniferous1"]+
+                 +mixedforest*coefs["landcover_MixedForest1"]+lnwater*coefs["ln_water"]+edge2018*coefs["edge"]+edge22018*coefs["I(edge^2)"]+NDVI2018*coefs["NDVI"]+
+                 newcut2018*coefs["cutageclass_new"]+regencut2018*coefs["cutageclass_regen"]+newcut2018*cutsize2018*coefs["cutageclass_new:sizeha"]+
+                 regencut2018*cutsize2018*coefs["cutageclass_regen:sizeha"]+roaddens*coefs["roaddens"]+lnroaddist*coefs["ln_roaddist"])
+
+model <- glm(Used~landcover_Pine+landcover_Deciduous+landcover_MixedForest+landcover_Coniferous+scale(ln_water)+scale(NDVI)+cutageclass_new+cutageclass_regen+cutageclass_new:scale(sizeha)+cutageclass_regen:scale(sizeha)+scale(roaddens)+scale(ln_roaddist),family=binomial, data=wolf_used_available_final)
+model <- glm(Used~landcover_Pine+landcover_Deciduous+landcover_MixedForest+landcover_Coniferous+ln_water+NDVI+cutageclass_new+cutageclass_regen+cutageclass_new:sizeha+cutageclass_regen:sizeha+roaddens+ln_roaddist,family=binomial, data=wolf_used_available_final)
+
+
+#plot(predict)
+predictions2018 <- predict(stack2018,model, fun=predict)
+RSF2018 <- exp(predictions2018)/(1+exp(predictions2018))
+plot(RSF2018)
+writeRaster(RSF2018,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2018.tif')
+
+predictions2019 <- predict(stack2019,model, fun=predict)
+RSF2019 <- exp(predictions2019)/(1+exp(predictions2019))
+plot(RSF2019)
+writeRaster(RSF2019,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2019.tif')
+
+predictions2020 <- predict(stack2020,model, fun=predict)
+RSF2020 <- exp(predictions2020)/(1+exp(predictions2020))
+plot(RSF2020)
+writeRaster(RSF2020,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2020.tif')
