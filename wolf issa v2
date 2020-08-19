@@ -34,7 +34,9 @@ wolves_used_final <- wolves_used_final[,-c(6,7)]
 #create month and season columns
 wolves_used_final$Date<-as.Date(wolves_used_final$ts,format="%m/%d/%Y") 
 wolves_used_final<- wolves_used_final %>% dplyr::mutate(Year = lubridate::year(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y")), 
-                monthday = as.numeric(paste(lubridate::month(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y")),lubridate::day(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y")), sep = "")))
+                Month = lubridate::month(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y")),Day = lubridate::day(as.POSIXlt(wolves_used_final$ts, format="%d/%m/%Y")))
+wolves_used_final$Day <- sprintf("%02d", wolves_used_final$Day)
+wolves_used_final$monthday <- as.numeric(paste(wolves_used_final$Month,wolves_used_final$Day,sep=""))
 summer <- wolves_used_final[c(wolves_used_final$monthday >= 400 & wolves_used_final$monthday <= 930),]
 summer$Season <- "Summer"
 winter <- wolves_used_final[!(wolves_used_final$monthday >= 400 & wolves_used_final$monthday <= 930),]
@@ -49,7 +51,7 @@ wolves_used_final$check <- paste(wolves_used_final$ID, wolves_used_final$Year, w
 wolves_used_final <- wolves_used_final %>% group_by(check) %>% filter(n() > 336)#remove animals with <14 days
 dt <- data.table(wolves_used_final) #change to data.table
 dt[,list(freq = .N), by = "check"] #check that no animals with <7 days remain
-wolves_used_final <- wolves_used_final[,-10]
+wolves_used_final <- wolves_used_final[,-12]
 rm(dt)
 
 #split by seasons
@@ -125,16 +127,12 @@ rm(usedall,p_allsl)
 
 #making steps into spatialpointsdataframe (from end points)
 crs <- CRS("+init=epsg:3005")
-wolves_ua_sp_start <- SpatialPointsDataFrame(wolves_used_available_final[,5:6], 
+wolves_ua_sp_start <- SpatialPointsDataFrame(wolves_used_available_final[,c(3,5)], 
                                              wolves_used_available_final, proj4string=crs)
-wolves_ua_sp_end <- SpatialPointsDataFrame(wolves_used_available_final[,7:8],
+wolves_ua_sp_end <- SpatialPointsDataFrame(wolves_used_available_final[,c(4,6)],
                                            wolves_used_available_final, proj4string=crs)
 
 ############### current NDVI ##################
-
-#if velox dies out again
-#library(devtools)
-#install_github("hunzikp/velox")
 
 #import NDVI files into stack
 NDVI.rasters<-stack(list.files("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVI",pattern='\\.tif$',full.names = TRUE))
@@ -156,7 +154,7 @@ wolves_vars_end<-list()
 
 for(i in 1:nrow(wolves_used_available_final)){
 pt<-wolves_ua_sp_end1[i,]
-day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolf point date
+day<-as.numeric(pt$julian.day-15):as.numeric(pt$julian.day) ## gives sequence of julian dates 16 days prior to the wolves point date
 NDVI.v<-velox(NDVI.rasters.vx$rasterbands[[which(as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),8,4)) == year(pt$Date)&
                                           as.numeric(substrRight(names(NDVI.rasters.vx$rasterbands),3,0)) %in% day)]],res = res(NDVI.rasters),extent=as.vector(extent(NDVI.rasters)),crs=crs(NDVI.rasters)) # finds the NDVI raster that was found in the day window
 pt$NDVI<-NDVI.v$extract_points(pt)
@@ -172,7 +170,32 @@ wolves_used_available_final$end_NDVI <- wolves_vars_end$NDVI
 #apply scaling factor and remove NAs
 wolves_used_available_final$end_NDVI <- wolves_used_available_final$end_NDVI*0.0001
 wolves_used_available_final$end_NDVI[is.na(wolves_used_available_final$end_NDVI)] = mean(wolves_used_available_final$end_NDVI, na.rm=TRUE)
-rm(NDVI.rasters,wolves_vars_end,wolves_vars_start,pt,wolves_ua_sp_start1, wolves_ua_sp_end1,NDVI.rasters.vx,NDVI.v,day,i,substrRight)
+rm(NDVI.rasters,wolves_vars_end,pt,wolves_ua_sp_end1)
+rm(NDVI.rasters.vx,NDVI.v)
+
+################## mean NDVI #####################
+
+NDVIsummer2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIsummer2018.tif")
+NDVIsummer2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIsummer2019.tif")
+NDVIsummer2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIsummer2020.tif")
+NDVIwinter2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIwinter2017.tif")
+NDVIwinter2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIwinter2018.tif")
+NDVIwinter2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\NDVI\\VI_16Days_250m_v6\\NDVIseasons\\NDVIwinter2019.tif")
+
+#extract at end of step
+wolves_used_available_final$end_NDVI <- if (wolves_ua_sp_end$year == "2018" & wolves_ua_sp_end$season == "Summer"){raster::extract(NDVIsummer2018,wolves_ua_sp_end)
+} else if (wolves_ua_sp_end$year == "2019"& wolves_ua_sp_end$season == "Summer"){raster::extract(NDVIsummer2019,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"& wolves_ua_sp_end$season == "Summer"){raster::extract(NDVIsummer2020,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"& wolves_ua_sp_end$season == "Winter"){raster::extract(NDVIwinter2019,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2019"& wolves_ua_sp_end$julian.day > 273){raster::extract(NDVIwinter2019,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2019"& wolves_ua_sp_end$julian.day < 91){raster::extract(NDVIwinter2018,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2018"& wolves_ua_sp_end$julian.day >273){raster::extract(NDVIwinter2018,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2018"& wolves_ua_sp_end$julian.day <91){raster::extract(NDVIwinter2017,wolves_ua_sp_end)
+      } else (print("NA"))
+rm(NDVIsummer2018,NDVIsummer2019,NDVIsummer2020,NDVIwinter2017,NDVIwinter2018,NDVIwinter2019)
+
+wolves_used_available_final$end_NDVI <- wolves_used_available_final$end_NDVI*0.0001
+wolves_used_available_final$end_NDVI[is.na(wolves_used_available_final$end_NDVI)] = mean(wolves_used_available_final$end_NDVI, na.rm=TRUE)
 
 ############### Land Cover ####################
 
@@ -186,10 +209,9 @@ VRI <- as.factor(VRI)
 
 #project raster
 VRI <- projectRaster(VRI, crs="+init=epsg:3005 +proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs")
-VRI.vx <- velox(VRI)
 
 #extract VRI at end of step
-wolves_used_available_final$end_landcover <- as.factor(round(VRI.vx$extract_points(wolves_ua_sp_end)))
+wolves_used_available_final$end_landcover <- factor(round(raster::extract(VRI,wolves_ua_sp_end)))
 
 #replace levels
 levels(wolves_used_available_final$end_landcover) <- c("Coniferous","Deciduous","MixedForest","Nonforest","Pine")
@@ -203,33 +225,30 @@ wolves_used_available_final$end_landcover_Deciduous <- as.factor(wolves_used_ava
 wolves_used_available_final$end_landcover_Pine <- as.factor(wolves_used_available_final$end_landcover_Pine)
 wolves_used_available_final$end_landcover_MixedForest <- as.factor(wolves_used_available_final$end_landcover_MixedForest)
 wolves_used_available_final$end_landcover_Nonforest <- as.factor(wolves_used_available_final$end_landcover_Nonforest)
-rm(VRI.vx,VRI,lookup)
+rm(VRI,lookup)
 
 ############### Road density ######################
 
 #load road density data
 roaddens <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\PGS_ROADDENS_FINAL.tif")
-roaddens.vx <- velox(roaddens)
 
 #extract roaddens at start of step
-wolves_used_available_final$start_roaddens <- roaddens.vx$extract_points(wolves_ua_sp_start)
+wolves_used_available_final$start_roaddens <- raster::extract(roaddens,wolves_ua_sp_start)
 
 #extract roaddens at end of step
-wolves_used_available_final$end_roaddens <- roaddens.vx$extract_points(wolves_ua_sp_end)
-rm(roaddens,roaddens.vx)
+wolves_used_available_final$end_roaddens <- raster::extract(roaddens,wolves_ua_sp_end)
+rm(roaddens)
 
 ############# Distance to Road ########################
 
 #load distance to road data
 roaddist <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Roads\\EucDist_road10m.tif")
 
-roaddist.vx <- velox(roaddist)
-
 #extract roaddist at start of step
-wolves_used_available_final$start_roaddist <- as.numeric(roaddist.vx$extract_points(wolves_ua_sp_start))
+wolves_used_available_final$start_roaddist <- as.numeric(raster::extract(roaddist,wolves_ua_sp_start))
 
 #extract roaddist at end of step
-wolves_used_available_final$end_roaddist <- as.numeric(roaddist.vx$extract_points(wolves_ua_sp_end))
+wolves_used_available_final$end_roaddist <- as.numeric(raster::extract(roaddist,wolves_ua_sp_end))
 rm(roaddist,roaddist.vx)
 
 ############# Cut blocks ###############################
@@ -291,84 +310,51 @@ rm(start_overcut, end_overcut,cut2018clean,cut2019clean,cut2020clean)
 
 #load distance to forest edge when in forest rasters
 edgein2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2018.tif")
-edgein2018.vx <- velox(edgein2018)
-rm(edgein2018)
-
 edgein2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2019.tif")
-edgein2019.vx <- velox(edgein2019)
-rm(edgein2019)
-
 edgein2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\Edgein\\EucDist_edgein2020.tif")
-edgein2020.vx <- velox(edgein2020)
-rm(edgein2020)
-
-#extract at start of step
-#wolves_used_available_final$start_edgein <- if (wolves_ua_sp_start$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_start)
-#} else if (wolves_ua_sp_start$year == "2019"){edgein2019.vx$extract_points(wolves_ua_sp_start)
-#} else if (wolves_used_available_final$year == "2020"){edgein2020.vx$extract_points(wolves_ua_sp_start)
-#      } else (print("NA"))
 
 #extract at end of step
-wolves_used_available_final$end_edgein <- if (wolves_ua_sp_end$year == "2018"){edgein2018.vx$extract_points(wolves_ua_sp_end)
-} else if (wolves_ua_sp_end$year == "2019"){edgein2019.vx$extract_points(wolves_ua_sp_end)
-} else if (wolves_used_available_final$year == "2020"){edgein2020.vx$extract_points(wolves_ua_sp_end)
+wolves_used_available_final$end_edgein <- if (wolves_ua_sp_end$year == "2018"){raster::extract(edgein2018,wolves_ua_sp_end)
+} else if (wolves_ua_sp_end$year == "2019"){raster::extract(edgein2019,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"){raster::extract(edgein2020,wolves_ua_sp_end)
       } else (print("NA"))
 
-wolves_used_available_final$start_edgein[is.na(wolves_used_available_final$start_edgein)] = mean(wolves_used_available_final$start_edgein, na.rm=TRUE)
 wolves_used_available_final$end_edgein[is.na(wolves_used_available_final$end_edgein)] = mean(wolves_used_available_final$end_edgein, na.rm=TRUE)
-
-rm(edgein2018.vx,edgein2019.vx,edgein2020.vx)
+rm(edgein2018,edgein2019,edgein2020)
 
 #################### Edge Out #################################
 
 #load distance to forest edge when outside forest rasters
 edgeout2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2018.tif")
-edgeout2018.vx <- velox(edgeout2018)
-rm(edgeout2018)
-
 edgeout2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2019.tif")
-edgeout2019.vx <- velox(edgeout2019)
-rm(edgeout2019)
-
 edgeout2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Edge\\edgeout\\EucDist_edgeout2020.tif")
-edgeout2020.vx <- velox(edgeout2020)
-rm(edgeout2020)
-
-#extract at start of step
-#wolves_used_available_final$start_edgeout <- if (wolves_ua_sp_start$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_start)
-#} else if (wolves_ua_sp_start$year == "2019"){edgeout2019.vx$extract_points(wolves_ua_sp_start)
-#} else if (wolves_used_available_final$year == "2020"){edgeout2019.vx$extract_points(wolves_ua_sp_start)
-#      } else (print("NA"))
 
 #extract at end of step
-wolves_used_available_final$end_edgeout <- if (wolves_ua_sp_end$year == "2018"){edgeout2018.vx$extract_points(wolves_ua_sp_end)
-} else if (wolves_ua_sp_end$year == "2019"){edgeout2019.vx$extract_points(wolves_ua_sp_end)
-} else if (wolves_used_available_final$year == "2020"){edgeout2020.vx$extract_points(wolves_ua_sp_end)
+wolves_used_available_final$end_edgeout <- if (wolves_ua_sp_end$year == "2018"){raster::extract(edgeout2018,wolves_ua_sp_end)
+} else if (wolves_ua_sp_end$year == "2019"){raster::extract(edgeout2019,wolves_ua_sp_end)
+} else if (wolves_used_available_final$year == "2020"){raster::extract(edgeout2020,wolves_ua_sp_end)
       } else (print("NA"))
-rm(edgeout2018.vx,edgeout2019.vx,edgeout2020.vx)
+rm(edgeout2018,edgeout2019,edgeout2020)
 
 #################### Distance to water  ########
 
 #import raster
 water <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\Water\\dist_water10m.tif")
 
-#create velox raster
-water.vx <- velox(water)
-
 #extract water at end of step
-wolves_used_available_final$end_water <- water.vx$extract_points(wolves_ua_sp_end)
-rm(water,water.vx)
+wolves_used_available_final$end_water <- raster::extract(water,wolves_ua_sp_end)
+rm(water)
 
 ########### save data! ###############
 
 rm(wolves_ua_sp_start, wolves_ua_sp_end,crs,day,i)
 write.csv(wolves_used_available_final, "wolves_used_available_final.csv")
 
-save.image(file='iSSA_wolf_final_difseason_v2.RData')
+save.image(file='iSSA_wolf_final.RData')
 
 ############# Reload data (if failed) #####################
 
-load(file='iSSA_wolf_final_difseason_v2.RData')
+load(file='iSSA_wolf_final.RData')
 
 #load data
 wolves_used_available_final<-read.csv("wolves_used_available_final.csv")
@@ -408,6 +394,7 @@ wolves_used_available_final$ln_end_edgein <- log(wolves_used_available_final$end
 wolves_used_available_final$hour<-format(strptime(as.character(wolves_used_available_final$t1), "%Y-%m-%d %H:%M"),"%H")
 wolves_used_available_final$hour <- as.numeric(wolves_used_available_final$hour)
 wolves_used_available_final$sinhour <- sin((4*pi*(wolves_used_available_final$hour-6))/24)
+wolves_used_available_final$lnSL[is.infinite(wolves_used_available_final$lnSL)] = 0
 
 #remove weird wolf
 #wolves_used_available_final <- wolves_used_available_final[!(wolves_used_available_final$name=="26818a" & wolves_used_available_final$season=="Winter"),]
@@ -537,6 +524,7 @@ for (i in 1:length(year)){
 base_results_issa<-as.data.frame(cbind(wolf,Year,Season,Model,AIC,Covariates,beta,SE,p))
 base_results_issa$AIC<-as.numeric(as.character(AIC))
 base_results_issa$check <- paste(base_results_issa$wolf, base_results_issa$Year, base_results_issa$Season)
+base_results_issa$beta <- as.numeric(as.character(base_results_issa$beta))
 
 ######### Calculate and Plot AIC weights ###############
 
@@ -654,12 +642,12 @@ results_males_summer <-results_sex_age[results_sex_age$Season=="Summer"&results_
 results_males_winter <-results_sex_age[results_sex_age$Season=="Winter"&results_sex_age$Model=="Global"&results_sex_age$Sex=="M",]
 
 #bootstrap spring
-b.boot<-numeric(2000)
+b.boot<-numeric(10000)
 average<-vector()
 results_males_summer$beta<-as.numeric(as.character(results_males_summer$beta))
 results_males_summer$SE<-as.numeric(as.character(results_males_summer$SE))
 covariates_summer<-unique(results_males_summer$Covariates)
-results_males_summer_betas<-as.data.frame(setNames(replicate(length(covariates_summer),numeric(2000),simplify=F),covariates_summer))
+results_males_summer_betas<-as.data.frame(setNames(replicate(length(covariates_summer),numeric(10000),simplify=F),covariates_summer))
 
 for(n in 1:ncol(results_males_summer_betas)){
   for(j in 1:length(b.boot)){
@@ -681,12 +669,12 @@ for(n in 1:ncol(results_males_summer_betas)){
 assign(paste("pop_males_summer"),results_males_summer_betas)
 
 #bootstrap winter
-b.boot<-numeric(2000)
+b.boot<-numeric(10000)
 average<-vector()
 results_males_winter$beta<-as.numeric(as.character(results_males_winter$beta))
 results_males_winter$SE<-as.numeric(as.character(results_males_winter$SE))
 covariates_winter<-unique(results_males_winter$Covariates)
-results_males_winter_betas<-as.data.frame(setNames(replicate(length(covariates_winter),numeric(2000),simplify=F),covariates_winter))
+results_males_winter_betas<-as.data.frame(setNames(replicate(length(covariates_winter),numeric(10000),simplify=F),covariates_winter))
 
 for(n in 1:ncol(results_males_winter_betas)){
   for(j in 1:length(b.boot)){
@@ -786,8 +774,7 @@ movement_annual<-ggplot(aes(y = Beta, x = Covariate), data = movement_fixed_beta
         geom_hline(yintercept=0,col="red",lwd=2)
 movement_annual
 
-betas_movement<-group_by(movement_fixed_betas,Season,Covariate) %>% summarise(median = median(Beta),
-                                                                                         lower = quantile(Beta,0.025),
+betas_movement<-group_by(movement_fixed_betas,Season,Covariate) %>% summarise(lower = quantile(Beta,0.025),median = median(Beta),
                                                                                          upper = quantile(Beta,0.975))
 write.table(betas_movement, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\movement betas.txt", sep = ",", quote = FALSE, row.names = F)
 
@@ -916,6 +903,11 @@ names(habitat_fixed_betas_landcover_allseasons)[names(habitat_fixed_betas_landco
 
 habitat_fixed_betas_all_allseasons <- rbind(habitat_fixed_betas_roads_allseasons,habitat_fixed_betas_landcover_allseasons, habitat_fixed_betas_cuts_allseasons)
 
+options(digits=3)
+betas_habitat<-group_by(habitat_fixed_betas_all_allseasons,Season,Covariate) %>% summarise(lower = quantile(Beta,0.025),median = median(Beta),
+                                                                                         upper = quantile(Beta,0.975))
+write.table(betas_habitat, file = "D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\habitat betas.txt", sep = ",", quote = FALSE, row.names = F)
+
 
 habitat_landcovercuts_annual<-ggplot(aes(y = Beta, x = Covariate), data = habitat_fixed_betas_all_allseasons, width=2) + 
   geom_boxplot(aes(fill = Season),width=0.8,color="black", lwd = 0.8,
@@ -976,8 +968,8 @@ SL_males_new_winter<-unique(paste(results_males_winter$wolf,results_males_winter
 #summer
 wolves_used_available_final_summer <- wolves_used_available_final[wolves_used_available_final$season=="Summer",]
 wolves_used_final_summer <- wolves_used_available_final_summer[wolves_used_available_final_summer$used==1,]
-wolf_summer_sl <- wolves_used_final_summer$sl
-wolf_summer_gamma<-fitdistr(wolf_summer_sl,"gamma", lower=0.01)
+wolf_summer_sl <- (wolves_used_final_summer$sl/1000)+0.001
+wolf_summer_gamma<-fitdistr(wolf_summer_sl,"gamma",lower=0.001)
 cutsize_summer<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 1000)
 
 for(i in 1:length(cutsize_summer)){
@@ -1005,8 +997,8 @@ SL_males_new_summer[,2]<-as.numeric(as.character(SL_males_new_summer[,2]))
 #winter
 wolves_used_available_final_winter <- wolves_used_available_final[wolves_used_available_final$season=="Winter",]
 wolves_used_final_winter <- wolves_used_available_final_winter[wolves_used_available_final_winter$used==1,]
-wolf_winter_sl <- wolves_used_final_winter$sl
-wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.01)
+wolf_winter_sl <- (wolves_used_final_winter$sl/1000)+0.001
+wolf_winter_gamma<-fitdistr(wolf_winter_sl,"gamma", lower=0.001)
 cutsize_winter<-seq(min(wolves_used_available_final$start_sizeha),quantile(wolves_used_available_final$start_sizeha,1),length.out = 1000)
 
 for(i in 1:length(cutsize_winter)){
@@ -1185,7 +1177,7 @@ P_SL_cutagesize_winter <-ggplot(SL_cutagesize_winter, aes(x=`Cut size`, y=`50%`,
   labs(x=expression("Cut size"~(km^2)),y="Step length (m/h)") + theme_bw()+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,200),expand=F) + 
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,1),expand=F) + 
   theme(legend.position = c(0.8, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
   theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
@@ -1195,7 +1187,7 @@ P_SL_cutagesize_summer <-ggplot(SL_cutagesize_summer, aes(x=`Cut size`, y=`50%`,
  labs(x=expression("Cut size"~(km^2)),y="Step length (m/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,200),expand=F) + 
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0,1),expand=F)  + 
   theme(legend.position = c(0.8, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
   theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
@@ -1324,7 +1316,7 @@ males_roaddist <-ggplot(SL_roaddist_males_final, aes(x=distroad, y=`50%`,fill=Se
   labs(x= expression("Distance to road (m)"),y="Step length (m/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(100,200),xlim=c(0,3000),expand=F) + 
+        axis.text.y = element_text(size=18, colour = "black")) + coord_cartesian(xlim=c(0,2000),ylim=c(0.2,1.25),expand=F)+
   theme(legend.position = c(0.9, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
   theme(plot.margin=unit(c(1.1,1,0.5,0.5),"cm"))
 males_roaddist
@@ -1438,12 +1430,12 @@ SL_roaddens_males_final<-rbind(SL_males_roaddens_final_summer,SL_males_roaddens_
 SL_roaddens_males_final$Season <- factor(SL_roaddens_males_final$Season, levels = c("Summer", "Winter"))
 
 males_roaddens <-ggplot(SL_roaddens_males_final, aes(x=roaddens, y=`50%`,fill=Season,colour=Season)) +
-  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)+theme_bw()+coord_cartesian(ylim=c(100,175),expand=F) +
+  geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2)+theme_bw() +
   geom_line()+
   labs(x= expression("Road density"~(km/km^2)),y="Step length (km/h)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))+ 
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(ylim=c(0.2,1.25),expand=F)+ 
   theme(legend.position = c(0.9, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16)) + 
   theme(plot.margin=unit(c(1.1,0.5,0.5,0.5),"cm"))
 
@@ -1455,11 +1447,11 @@ prow2 <- plot_grid(
   align = 'vh',
   hjust=-0.5,
   vjust=2,
-  nrow = 1
+  nrow = 1, labels = c('A', 'B'), label_size = 18, label_x=0.15,label_y=0.95
 )
 prow2
 
-ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length2.tiff", plot=prow2, units="in", width=16, height=8, dpi=600, compression = 'lzw')
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\Step length2.tiff", plot=prow2, units="in", width=15.5, height=8, dpi=600, compression = 'lzw')
 
 #-----------------------------------
 ########### RSS CALCULATIONS ##############
@@ -1552,7 +1544,7 @@ RSS_roaddist$d_road_exp <- exp(RSS_roaddist$d_road)
 
 p_RSS_roaddist <- ggplot(RSS_roaddist, aes(x=d_road_exp, y=`50%`, fill=Season, color=Season))+theme_bw() +
   geom_ribbon(aes(ymin=`5%`, ymax=`95%`), alpha=0.2) +
-  geom_line()+coord_cartesian(xlim=c(0,3000),expand=F) +
+  geom_line()+coord_cartesian(xlim=c(0,2000),ylim=c(-2.5,0.5),expand=F) +
  labs(x="Distance to road (m)",y="ln(RSS)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
@@ -1560,6 +1552,7 @@ p_RSS_roaddist <- ggplot(RSS_roaddist, aes(x=d_road_exp, y=`50%`, fill=Season, c
   theme(legend.position = c(0.1, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16))+
     theme(plot.margin=unit(c(1.1,1,0.5,0.5),"cm"))
 
+ggsave("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Figures\\RSS_roaddist.tiff", plot=p_RSS_roaddist, units="in", width=8, height=8, dpi=600, compression = 'lzw')
 
 
 ####### RSS Road density ##############
@@ -1650,7 +1643,7 @@ p_RSS_roaddens<- ggplot(RSS_roaddens, aes(x=roaddens1, y=`50%`, fill=Season, col
  labs(x=expression("Road density"~(km/km^2)),y="ln(RSS)")+
   theme(axis.title = element_text(size=18),
         axis.text.x = element_text(size=16, colour = "black"),
-        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(xlim=c(0,5.5), expand=F)+
+        axis.text.y = element_text(size=18, colour = "black"))+coord_cartesian(xlim=c(0,5.5),ylim=c(-2.5,0.5), expand=F)+
   theme(legend.position = c(0.1, 0.95),legend.title=element_blank(),legend.background = element_rect(fill=NA),legend.text=element_text(size=16))
 
 prow3 <- plot_grid(
@@ -1659,7 +1652,7 @@ prow3 <- plot_grid(
   align = 'vh',
   hjust=-0.5,
   vjust=2,
-  nrow = 1
+  nrow = 1, labels = c('A', 'B'), label_size = 18, label_x=0.9,label_y=0.95
 )
 prow3
   
