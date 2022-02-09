@@ -1,0 +1,1829 @@
+# Code for iSSA
+#save.image(file='neonate_success_6weekclipped2.RData') #PGS
+save.image(file='neonate_success_6weekclip1.RData') 
+load(file='neonate_success_6weekclip1.RData')
+
+### LOAD PACKAGES ###
+lapply(c("expss","lme4","AICcmodavg","adehabitatHR","sjPlot","forcats","viridis","stringr","fastDummies","car","matrixStats","ppcor","geosphere","velox","rgeos","data.table","plyr","raster", "lubridate", "magrittr", "readr", "dplyr", "maptools", "spatstat", "tidyr", "ggplot2", "survival", "cowplot", "rgeos", "rgdal", "sf", "sp", "MASS", "readr", "boot", "reshape"), require, character.only = TRUE)
+
+##set wd
+setwd("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\Neonate survival\\Data")
+
+##set seed
+set.seed(1)
+
+#LOAD AND PREP DATA - Neonates ####
+neonate <- read.csv("Neonatesurvival_final.csv",na.strings=c(""," ","NA"))
+#neonate <- neonate[!(neonate$Second_Estrous==1),] #remove second estrous calves
+#neonate <- neonate[!(neonate$Second_Estrous==2),] #remove second estrous calves
+neonate$Second_Estrous <- NULL
+neonate <- neonate[(neonate$Move_CalfBorn==1),] #keep only cows with confident calving movements
+neonate <- neonate[(neonate$Surveyed=="Yes"),] #only keep surveyed neonates (excludes May survey too)
+neonate$Calf_Present <- as.numeric(neonate$Calf_Present)
+neonate$Calving_Julian <- as.numeric(neonate$Calving_Julian)
+neonate$Calf_Age <- as.numeric(neonate$Calf_Age)
+neonate$Fixrate <- as.numeric(neonate$Fixrate)
+hist(neonate$Fixrate)
+neonate <- neonate[!(neonate$Fixrate>4),]
+
+### LOAD AND PREP DATA - PGS ###
+PGS_cows <- read.csv("PGS_Positions.csv")
+PGS_cows <- PGS_cows[!(PGS_cows$DOP > 10),] #remove inaccurate fixes
+PGS_cows <- PGS_cows[!(PGS_cows$DOP = 0),] #remove bad fixes
+PGS_cows$DOP <- NULL #get rid of DOP column
+all(complete.cases(PGS_cows)) # check all entries are there
+names(PGS_cows)[2] <- "Collar" #rename column
+PGS_cows$Date <- as.POSIXct(PGS_cows$Date) #create useable date column
+PGS_cows$Year <- year(PGS_cows$Date) #add in year column
+PGS_cows <- PGS_cows[!(PGS_cows$Longitude>-80),]
+PGS_positions <- PGS_cows
+PGS_cows<-merge(PGS_cows,neonate,by.x=c("Collar","Year"),by.y=c("SN","CalfYear"),all.x=T) #merge positions with neonate details
+PGS_cows$WLHID.y<-NULL #remove extra column
+PGS_cows<-PGS_cows[!(is.na(PGS_cows$Number)),] #get rid of N/A data
+PGS_cows$RSF6week <- as.POSIXct(PGS_cows$RSF6week) #create useable survey date
+PGS_cows <- PGS_cows[!(PGS_cows$Date<PGS_cows$Calving_Date),] #remove any data before calving date
+PGS_cows <- PGS_cows[!(PGS_cows$Date>PGS_cows$RSF6week),] #remove any data after survey date or 6 week
+duration<-PGS_cows %>% group_by(Number) %>% summarise(n=n(),min=min(Date),max=max(Date)) #min and max date for each cow when subsetted
+PGS_cows <- PGS_cows[order(PGS_cows$Date,PGS_cows$Time),] #order data by date and time
+ggplot(PGS_cows) +  geom_point(data=PGS_cows, aes(x=Longitude, y=Latitude), color=PGS_cows$Number) #check that no positions look weird
+
+#### generate kernel densities - PGS ####
+PGS_positions <-merge(PGS_positions,neonate,by.x=c("Collar","Year"),by.y=c("SN","YearHR"),all.x=T)
+PGS_positions<-PGS_positions[!(is.na(PGS_positions$Number)),] #get rid of N/A data
+PGS_positions$CaptureDate <- as.POSIXct(PGS_positions$CaptureDate) #create useable capture date
+PGS_positions<-PGS_positions[!(PGS_positions$Date<PGS_positions$CaptureDate),] #get rid of data before capture
+PGS_positions$OffAirDate[is.na(PGS_positions$OffAirDate)] <- "2100-01-01" #give arbitrary offair date to alive/still collared cows (so can subset...)
+PGS_positions$OffAirDate <- as.POSIXct(PGS_positions$OffAirDate) #create useable offair date
+PGS_positions<-PGS_positions[!(PGS_positions$Date>PGS_positions$OffAirDate),] #get rid of data before capture
+duration2<-PGS_positions %>% group_by(Number) %>% summarise(n=n(),min=min(Date),max=max(Date)) #min and max date for each cow when subsetted
+ggplot(PGS_positions) + geom_point(data=PGS_positions, aes(x=Longitude, y=Latitude), color=PGS_positions$Number) #check that no positions look weird
+rm(duration2)
+
+#generate home ranges
+PGS_positions_sp<-SpatialPointsDataFrame(PGS_positions[,c(7,6)], PGS_positions, proj4string=CRS("+proj=longlat +datum=WGS84"))
+plot(PGS_positions_sp)
+PGS_cows_sp <- spTransform(PGS_positions_sp, sp::CRS("+proj=utm +zone=10 ellps=WGS84"))
+temp <- as.data.frame(PGS_cows_sp)
+temp$jitterx <- jitter(temp$Longitude.1,factor=50)
+temp$jittery <- jitter(temp$Latitude.1,factor=50)
+temp <- SpatialPointsDataFrame(temp[,c(54,55)],temp,proj4string=CRS("+proj=utm +zone=10 ellps=WGS84"))
+plot(temp,col="blue")
+points(PGS_cows_sp,col="red")
+kud <- kernelUD(temp[,9],h="LSCV",extent=0.8,grid=300)
+homerange <- getverticeshr(kud,percent=99,unin="m",unout="km2")
+plot(homerange,col=homerange$id)
+points(PGS_cows_sp,cex=0.5,col="red")
+rm(PGS_positions_sp,PGS_positions,temp)
+
+#generate random samples in each polygon
+x <- homerange
+size <- duration$n #add number of actual locations
+x$size <- size #add number of actual locations
+samples <- list() #loop through creating random sample of points
+  for (i in 1:nrow(x)) {
+    psub <- x[i,]
+      ns <- x[i,]$size
+    psamp <- try( sp::spsample(psub, n = ns*20, type = "random", 
+                               iter = 10) )
+    samples[[i]] <- sp::SpatialPointsDataFrame(psamp, 
+      data.frame(id = rep(psub$id,length(psamp))))
+  }
+samples <- do.call("rbind", samples) 
+proj4string(samples) <- proj4string(x)
+plot(x) #check it looks right
+  points(samples, pch=20) 
+samples<-spTransform(samples, sp::CRS("+proj=longlat +datum=WGS84"))
+plot(samples)
+random <- as.data.frame(samples) #create random dataframe
+rm(psamp,psub,samples,x,i,ns,size)
+
+#combine datasets
+bu <- PGS_cows
+#PGS_cows <-bu
+PGS_cows <- PGS_cows[c(2:3,6:7,9,22,25,29,49)]
+PGS_cows <- PGS_cows[order(PGS_cows$Number),]
+random$Year <- vlookup(random$id,PGS_cows,result_column=1,lookup_column=5)
+random$WLHID.x <- vlookup(random$id,PGS_cows,result_column=2,lookup_column=5)
+random$Calving_Date <- vlookup(random$id,PGS_cows,result_column=6,lookup_column=5)
+random$Survey_Date <- vlookup(random$id,PGS_cows,result_column=7,lookup_column=5)
+random$Calf_Present <- vlookup(random$id,PGS_cows,result_column=8,lookup_column=5)
+random$RSF6week <- vlookup(random$id,PGS_cows,result_column=9,lookup_column=5)
+random <- random[c(4,5,3,2,1,6,7,8,9)]
+colnames(random)[3] <- "Latitude"
+colnames(random)[4] <- "Longitude"
+colnames(random)[5] <- "Number"
+random$used <- 0
+PGS_cows$used <- 1
+PGS_ua <- rbind(PGS_cows,random)
+colnames(PGS_ua)[2] <- "WLHID"
+rm(random,PGS_cows)
+
+#### Extract PGS covariates - NDVI ####
+
+#create spatial points
+PGS_ua_sp <- SpatialPointsDataFrame(PGS_ua[,c(4,3)], PGS_ua, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+#load NDVI rasters
+NDVI2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_PGS\\Calving Avg 113 to 177\\CALF_PGS_NDVI_2018.tif")
+NDVI2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_PGS\\Calving Avg 113 to 177\\CALF_PGS_NDVI_2019.tif")
+NDVI2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_PGS\\Calving Avg 113 to 177\\CALF_PGS_NDVI_2020.tif")
+NDVI2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_PGS\\Calving Avg 113 to 177\\CALF_PGS_NDVI_2021.tif")
+PGS_ua_sp <- spTransform(PGS_ua_sp,crs(NDVI2018))
+
+#extract NDVI
+NDVI <- if (PGS_ua_sp$Year == "2018"){raster::extract(NDVI2018,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2019"){raster::extract(NDVI2019,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2020"){eraster::extract(NDVI2020,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2021"){eraster::extract(NDVI2021,PGS_ua_sp)
+      } else (print("NA"))
+PGS_ua <-cbind(PGS_ua,NDVI)
+PGS_ua$NDVI[is.na(PGS_ua$NDVI)] = mean(PGS_ua$NDVI, na.rm=TRUE)
+PGS_ua$NDVI <- PGS_ua$NDVI*0.0001
+rm(NDVI2018,NDVI2019,NDVI2020,NDVI2021,NDVI)
+
+#### Extract PGS covariates - land cover ####
+
+#create spatial points
+PGS_ua_sp <- SpatialPointsDataFrame(PGS_ua[,c(4,3)], PGS_ua, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+#load in data
+VRI <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\VRI\\VRI_20m.tif")
+PGS_ua_sp <- spTransform(PGS_ua_sp,crs(VRI))
+VRI <- as.factor(VRI)
+PGS_buf <- gBuffer(spgeom=PGS_ua_sp,byid=TRUE,width=250)
+PGS_buf$uniqueid <- row(PGS_buf)
+VRI <- crop(VRI,extent(PGS_buf))
+VRI.vx <- velox(VRI)
+
+landcoverVRI_HR <- VRI.vx$extract(sp=PGS_buf)
+
+landcover_proportions <- lapply(landcoverVRI_HR, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+landcover <- plyr::ldply(landcover_proportions, rbind)
+landcover[is.na(landcover)]<-0
+landcover$.id <- as.numeric(landcover$.id)
+
+PGS_ua$Coniferous <- landcover$`1`
+PGS_ua$Deciduous <- landcover$`2`
+PGS_ua$MixedForest <- landcover$`3`
+PGS_ua$Nonforest <- landcover$`4`
+PGS_ua$Pine <- landcover$`5`
+PGS_ua$landcover <- raster::extract(VRI,PGS_ua_sp)
+write.csv(PGS_ua,'PGS_ua_final_6weeks.csv')
+rm(VRI,VRI.vx,landcover,landcover_proportions,landcoverVRI_HR)
+
+##### Extract PGS covariates - burn ##############
+
+#load burns
+burn2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Burns\\Burns_currenthistorical2021.tif")
+PGS_ua_sp <- spTransform(PGS_ua_sp,crs(burn2021))
+burn2021 <- crop(burn2021,extent(PGS_buf))
+burn2020 <- burn2021
+burn2019 <- burn2021
+burn2018 <- burn2021
+burn2020[burn2020<1] <-NA #removing years before burn year
+burn2019[burn2019<2] <-NA
+burn2018[burn2018<3] <-NA
+burn2020 <- burn2020-1
+burn2019 <- burn2019-2
+burn2018 <- burn2018-3
+burn2021[burn2021==0]<-0.1
+burn2020[burn2020==0]<-0.1
+burn2019[burn2019==0]<-0.1
+burn2018[burn2018==0]<-0.1
+burn2021[is.na(burn2021[])] <- 0
+burn2020[is.na(burn2020[])] <- 0
+burn2019[is.na(burn2019[])] <- 0
+burn2018[is.na(burn2018[])] <- 0
+plot(burn2021)
+
+#extract burn
+burn <- if (PGS_ua$Year == "2018"){raster::extract(burn2018,PGS_ua_sp)
+} else if (PGS_ua$Year == "2019"){raster::extract(burn2019,PGS_ua_sp)
+} else if (PGS_ua$Year == "2020"){raster::extract(burn2020,PGS_ua_sp)
+} else if (PGS_ua$Year == "2021"){raster::extract(burn2021,PGS_ua_sp)
+      } else (print("NA"))
+PGS_ua <- cbind(PGS_ua,burn)
+rm(burn,burn2018,burn2019,burn2020,burn2021,PGS_HR)
+PGS_ua$burnage <- PGS_ua$burn
+PGS_ua$burn <- ifelse(PGS_ua$burnage>0,1,0)
+
+##### Extract PGS covariates - burnprop ##############
+
+#load burns
+burn2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Burns\\Burns_currenthistorical2021.tif")
+PGS_buf <- spTransform(PGS_buf,crs(burn2021))
+burn2021 <- crop(burn2021,extent(PGS_buf))
+burn2020 <- burn2021
+burn2019 <- burn2021
+burn2018 <- burn2021
+burn2020[burn2020<1] <-NA #removing years before burn year
+burn2019[burn2019<2] <-NA
+burn2018[burn2018<3] <-NA
+burn2020 <- burn2020-1
+burn2019 <- burn2019-2
+burn2018 <- burn2018-3
+burn2021[burn2021==0]<-0.1
+burn2020[burn2020==0]<-0.1
+burn2019[burn2019==0]<-0.1
+burn2018[burn2018==0]<-0.1
+burn2021[burn2021>24] <-NA
+burn2020[burn2020>24] <-NA
+burn2019[burn2019>24] <-NA
+burn2018[burn2018>24] <-NA
+burn2021[burn2021<25]<-1
+burn2020[burn2020<25]<-1
+burn2019[burn2019<25]<-1
+burn2018[burn2018<25]<-1
+burn2021[is.na(burn2021[])] <- 0
+burn2020[is.na(burn2020[])] <- 0
+burn2019[is.na(burn2019[])] <- 0
+burn2018[is.na(burn2018[])] <- 0
+plot(burn2018)
+burn2021<-velox(burn2021)
+burn2020<-velox(burn2020)
+burn2019<-velox(burn2019)
+burn2018<-velox(burn2018)
+
+#extract burn
+burn2018_prop <- burn2018$extract(sp=PGS_buf)
+rm(burn2018)
+burn2018_prop <- lapply(burn2018_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2018_prop <- plyr::ldply(burn2018_prop, rbind)
+
+burn2019_prop <- burn2019$extract(sp=PGS_buf)
+rm(burn2019)
+burn2019_prop <- lapply(burn2019_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2019_prop <- plyr::ldply(burn2019_prop, rbind)
+
+burn2020_prop <- burn2020$extract(sp=PGS_buf)
+rm(burn2020)
+burn2020_prop <- lapply(burn2020_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2020_prop <- plyr::ldply(burn2020_prop, rbind)
+
+burn2021_prop <- burn2021$extract(sp=PGS_buf)
+rm(burn2021)
+burn2021_prop <- lapply(burn2021_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2021_prop <- plyr::ldply(burn2021_prop, rbind)
+
+burn2018_prop[is.na(burn2018_prop)]<-0
+burn2019_prop[is.na(burn2019_prop)]<-0
+burn2020_prop[is.na(burn2020_prop)]<-0
+burn2021_prop[is.na(burn2021_prop)]<-0
+colnames(burn2018_prop)[3] <- "burn2018"
+colnames(burn2019_prop)[3] <- "burn2019"
+colnames(burn2020_prop)[3] <- "burn2020"
+colnames(burn2021_prop)[3] <- "burn2021"
+burn_prop <- ifelse(PGS_ua$Year==2018,burn2018_prop$burn2018,ifelse(
+  PGS_ua$Year==2019,burn2019_prop$burn2019,ifelse(
+    PGS_ua$Year==2020,burn2020_prop$burn2020,ifelse(
+      PGS_ua$Year==2021,burn2021_prop$burn2021,"NA"))))
+PGS_ua <- cbind(PGS_ua,burn_prop)
+PGS_ua$burn_prop <- as.numeric(PGS_ua$burn_prop)
+hist(PGS_ua$burn_prop)
+rm(burn2018_prop,burn2019_prop,burn2020_prop,burn2021_prop,burn_prop)
+
+#### Extract PGS covariates - road density ####
+
+#load road density data
+roaddens <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Roads\\PGS_ROADDENS_FINAL.tif")
+plot(roaddens)
+points(PGS_ua_sp)
+
+#extract roaddens
+PGS_ua$roaddens <- raster::extract(roaddens,PGS_ua_sp)
+rm(roaddens)
+
+#### Extract PGS covariates - road distance ####
+
+#load distance to road data
+roaddist <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Roads\\EucDist_road10m_PGS.tif")
+plot(roaddist)
+points(PGS_ua_sp)
+
+#extract roaddist
+PGS_ua$roaddist <- as.numeric(raster::extract(roaddist,PGS_ua_sp))
+rm(roaddist)
+PGS_ua$ln_roaddist <- log(PGS_ua$roaddist+0.1)
+
+#### Extract PGS covariates - cut blocks ####
+
+#load shapefile
+cut2018 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2018")
+cut2018clean <- cut2018[,(c(95,101,102))]
+rm(cut2018)
+cut2019 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2019")
+cut2019clean <- cut2019[,(c(91,98,100))]
+rm(cut2019)
+cut2020 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2020")
+cut2020clean <- cut2020[,(c(91,98,99))]
+rm(cut2020)
+cut2021 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2021")
+cut2021clean <- cut2021[,(c(92,93,94))]
+rm(cut2021)
+#
+head(cut2021clean@data)
+which(colnames(cut2019@data)=="Age") #determines which columns to cut
+crs(cut2018clean)
+
+#transform crs
+PGS_ua_sp <- spTransform(PGS_ua_sp,crs(cut2018clean))
+
+#extract data based on Year
+overcut <- if (PGS_ua_sp$Year == "2018"){over(PGS_ua_sp,cut2018clean,fun=NULL)
+} else if (PGS_ua_sp$Year == "2019"){over(PGS_ua_sp,cut2019clean,fun=NULL)
+} else if (PGS_ua_sp$Year == "2020"){over(PGS_ua_sp,cut2020clean,fun=NULL)
+} else if (PGS_ua_sp$Year == "2021"){over(PGS_ua_sp,cut2021clean,fun=NULL)
+      } else (print("NA"))
+colnames(overcut)[1] <- "sizeha"
+colnames(overcut)[2] <- "cutage"
+colnames(overcut)[3] <- "cutageclass"
+
+#combine with the dataset
+PGS_ua <- cbind(PGS_ua,overcut)
+PGS_ua$sizeha[is.na(PGS_ua$sizeha)] = 0
+PGS_ua$cutage[is.na(PGS_ua$cutage)] = 0
+PGS_ua$cutageclass <- as.factor(PGS_ua$cutageclass)
+PGS_ua$cutageclass<- factor(PGS_ua$cutageclass, levels = levels(addNA(PGS_ua$cutageclass)), labels = c(levels(PGS_ua$cutageclass), "UnCut"), exclude = NULL)
+
+#make dummies for cut age classes
+PGS_ua<-dummy_cols(PGS_ua, select_columns="cutageclass",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+names(PGS_ua)[names(PGS_ua) == 'cutageclass_new'] <- 'newcut'
+names(PGS_ua)[names(PGS_ua) == 'cutageclass_regen'] <- 'regencut'
+rm(cut2018clean,cut2019clean,cut2019,cut2018,cut2020,cut2020clean,cut2021clean,overcut)
+
+write.csv(PGS_ua,'PGS_ua_final_6weeks.csv')
+
+###### cutblock prop ############
+
+#import raster
+cut2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2021_BOTH20m.tif")
+PGS_buf <- spTransform(PGS_buf,crs(cut2021))
+cut2021 <- crop(cut2021,extent(PGS_buf))
+cut2021[cut2021>24] <- NA
+cut2021[cut2021==0] <- NA
+cut2021[cut2021<9] <- 1
+cut2021[is.na(cut2021)]<-0
+cut2021[cut2021>8] <- 2
+plot(cut2021)
+cutblock2021<-velox(cut2021)
+cutblock2021_prop <- cutblock2021$extract(sp=PGS_buf)
+rm(cutblock2021)
+cutblock2021_prop <- lapply(cutblock2021_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cutblock2021_prop <- plyr::ldply(cutblock2021_prop, rbind)
+cutblock2021_prop$`0` <- NULL
+rm(cut2021)
+
+cut2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2020_BOTH20m.tif")
+cut2020 <- crop(cut2020,extent(PGS_buf))
+cut2020[cut2020>24] <- NA
+cut2020[cut2020==0] <- NA
+cut2020[cut2020<9] <- 1
+cut2020[is.na(cut2020)]<-0
+cut2020[cut2020>8] <- 2
+plot(cut2020)
+cutblock2020<-velox(cut2020)
+cutblock2020_prop <- cutblock2020$extract(sp=PGS_buf)
+rm(cutblock2020)
+cutblock2020_prop <- lapply(cutblock2020_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cutblock2020_prop <- plyr::ldply(cutblock2020_prop, rbind)
+cutblock2020_prop$`0` <- NULL
+rm(cut2020)
+
+cut2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2019_BOTH20m.tif")
+cut2019 <- crop(cut2019,extent(PGS_buf))
+cut2019[cut2019>24] <- NA
+cut2019[cut2019==0] <- NA
+cut2019[cut2019<9] <- 1
+cut2019[is.na(cut2019)]<-0
+cut2019[cut2019>8] <- 2
+plot(cut2019)
+cutblock2019<-velox(cut2019)
+cutblock2019_prop <- cutblock2019$extract(sp=PGS_buf)
+rm(cutblock2019)
+cutblock2019_prop <- lapply(cutblock2019_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cutblock2019_prop <- plyr::ldply(cutblock2019_prop, rbind)
+cutblock2019_prop$`0` <- NULL
+rm(cut2019)
+
+cut2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2018_BOTH20m.tif")
+cut2018 <- crop(cut2018,extent(PGS_buf))
+res(cut2018)
+cut2018[cut2018>24] <- NA
+cut2018[cut2018==0] <- NA
+cut2018[cut2018<9] <- 1
+cut2018[cut2018>8] <- 2
+cut2018[is.na(cut2018)]<-0
+plot(cut2018)
+cutblock2018<-velox(cut2018)
+rm(cut2018)
+cutblock2018_prop <- cutblock2018$extract(sp=PGS_buf)
+rm(cutblock2018)
+cutblock2018_prop <- lapply(cutblock2018_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cutblock2018_prop <- plyr::ldply(cutblock2018_prop, rbind)
+cutblock2018_prop$`0` <- NULL
+
+#get proportions
+cutblock2018_prop[is.na(cutblock2018_prop)]<-0
+cutblock2019_prop[is.na(cutblock2019_prop)]<-0
+cutblock2020_prop[is.na(cutblock2020_prop)]<-0
+cutblock2021_prop[is.na(cutblock2021_prop)]<-0
+newcut_prop <- ifelse(PGS_ua$Year==2018,cutblock2018_prop$`1`,ifelse(
+  PGS_ua$Year==2019,cutblock2019_prop$`1`,ifelse(
+    PGS_ua$Year==2020,cutblock2020_prop$`1`,ifelse(
+      PGS_ua$Year==2021,cutblock2021_prop$`1`,"NA"))))
+regencut_prop <- ifelse(PGS_ua$Year==2018,cutblock2018_prop$`2`,ifelse(
+  PGS_ua$Year==2019,cutblock2019_prop$`2`,ifelse(
+    PGS_ua$Year==2020,cutblock2020_prop$`2`,ifelse(
+      PGS_ua$Year==2021,cutblock2021_prop$`2`,"NA"))))
+PGS_ua <- cbind(PGS_ua,newcut_prop,regencut_prop)
+PGS_ua$newcut_prop <- as.numeric(PGS_ua$newcut_prop)
+PGS_ua$regencut_prop <- as.numeric(PGS_ua$regencut_prop)
+hist(PGS_ua$newcut_prop)
+rm(cutblock2018_prop,cutblock2019_prop,cutblock2020_prop,cutblock2021_prop)
+
+write.csv(PGS_ua,'PGS_ua_final_6weeks.csv')
+
+#### Extract PGS covariates - Edge In ####
+
+#load distance to forest edge when in forest rasters
+edgein2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgein2018.tif")
+edgein2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgein2019.tif")
+edgein2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgein2020.tif")
+edgein2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgein2021.tif")
+PGS_ua_sp<- spTransform(PGS_ua_sp,crs(edgein2021))
+plot(edgein2018)
+points(PGS_ua_sp)
+edgein2021 <- crop(edgein2021,extent(PGS_buf))
+edgein2020 <- crop(edgein2020,extent(PGS_buf))
+edgein2019 <- crop(edgein2019,extent(PGS_buf))
+edgein2018 <- crop(edgein2018,extent(PGS_buf))
+
+#extract
+edgein <- if (PGS_ua_sp$Year == "2018"){raster::extract(edgein2018,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2019"){raster::extract(edgein2019,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2020"){eraster::extract(edgein2020,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2021"){eraster::extract(edgein2021,PGS_ua_sp)
+      } else (print("NA"))
+PGS_ua <- cbind(PGS_ua,edgein)
+rm(edgein2018,edgein2019,edgein2020,edgein2021)
+
+PGS_ua$edgein[is.na(PGS_ua$edgein)] = mean(PGS_ua$edgein, na.rm=TRUE)
+PGS_ua$ln_edgein <- log(PGS_ua$edgein+0.1)
+
+
+#### Extract PGS covariates - Edge Out ####
+
+#load distance to forest edge when outside forest rasters
+edgeout2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgeout2018.tif")
+edgeout2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgeout2019.tif")
+edgeout2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgeout2020.tif")
+edgeout2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\PGS Edge\\EucDist_edgeout2021.tif")
+PGS_ua_sp<- spTransform(PGS_ua_sp,crs(edgeout2021))
+edgeout2021 <- crop(edgeout2021,extent(PGS_buf))
+edgeout2020 <- crop(edgeout2020,extent(PGS_buf))
+edgeout2019 <- crop(edgeout2019,extent(PGS_buf))
+edgeout2018 <- crop(edgeout2018,extent(PGS_buf))
+
+#extract
+edgeout <- if (PGS_ua_sp$Year == "2018"){raster::extract(edgeout2018,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2019"){raster::extract(edgeout2019,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2020"){raster::extract(edgeout2020,PGS_ua_sp) 
+} else if (PGS_ua_sp$Year == "2021"){raster::extract(edgeout2021,PGS_ua_sp)
+      } else (print("NA"))
+PGS_ua <- cbind(PGS_ua,edgeout)
+PGS_ua$edgeout[is.na(PGS_ua$edgeout)] = mean(PGS_ua$edgeout, na.rm=TRUE)
+rm(edgeout2018,edgeout2019,edgeout2020,edgeout2021,edgein,edgeout)
+PGS_ua$ln_edgeout <- log(PGS_ua$edgeout+0.1)
+
+#### Extract PGS covariates - Water ####
+
+#import raster
+water <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Waterbodies\\PGS Water\\dist_water10m.tif")
+PGS_ua_sp<- spTransform(PGS_ua_sp,crs(water))
+water <- crop(water,extent(PGS_buf))
+
+#extract water at start of step
+PGS_ua$water <- raster::extract(water,PGS_ua_sp)
+rm(water)
+PGS_ua$ln_water <- log(PGS_ua$water+0.1)
+
+#### Extract PGS covariates - Wolf ####
+
+#import rasters
+RSF2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Wolf RSF\\PGS Wolf\\RSF2018_Resample.tif")
+RSF2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Wolf RSF\\PGS Wolf\\RSF2019_Resample.tif")
+RSF2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Wolf RSF\\PGS Wolf\\RSF2020_Resample.tif")
+RSF2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Wolf RSF\\PGS Wolf\\RSF2021_Resample.tif")
+PGS_ua_sp<- spTransform(PGS_ua_sp,crs(RSF2021))
+
+#extract at start of step
+PGS_ua$wolf <- if (PGS_ua_sp$Year == "2018"){raster::extract(RSF2018,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2019"){raster::extract(RSF2019,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2020"){raster::extract(RSF2020,PGS_ua_sp)
+} else if (PGS_ua_sp$Year == "2021"){raster::extract(RSF2021,PGS_ua_sp)
+      } else (print("NA"))
+rm(RSF2018,RSF2019,RSF2020,RSF2021)
+
+#### Extract PGS covariates - Topography ####
+
+elevation <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\PGS_ELEVATION_50KM_20m_FINAL.tif")
+slope <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\PGS_SLOPE_50KM_20m_FINAL.tif")
+aspect <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\PGS_ASPECT_50KM_PROJECT.tif")
+PGS_ua_sp <- spTransform(PGS_ua_sp,crs(elevation))
+aspect <- ((aspect*pi)/180) #convert to radians
+
+#extract at end of step
+PGS_ua$elevation <- raster::extract(elevation,PGS_ua_sp)
+PGS_ua$slope <- raster::extract(slope,PGS_ua_sp)
+PGS_ua$aspect <- raster::extract(aspect,PGS_ua_sp)
+PGS_ua$eastness <- sin(PGS_ua$aspect)
+PGS_ua$northness <- cos(PGS_ua$aspect)
+rm(slope,aspect,elevation)
+
+######## Save PGS! #############
+
+options(scipen = 999)
+backup <- PGS_ua
+PGS_ua$cutageclass <- NULL
+PGS_ua$cutageclass_old <- NULL
+PGS_ua$cutageclass_UnCut <- NULL
+rm(duration,duration2)
+write.csv(PGS_ua,'PGS_ua_final_6weeks.csv')
+
+
+###### BP Data Extraction and Analysis #######
+
+#LOAD AND PREP DATA - Neonates ####
+neonate <- read.csv("Neonatesurvival_final.csv",na.strings=c(""," ","NA"))
+#neonate <- neonate[!(neonate$Second_Estrous==1),] #remove second estrous calves
+#neonate <- neonate[!(neonate$Second_Estrous==2),] #remove second estrous calves
+neonate$Second_Estrous <- NULL
+neonate <- neonate[(neonate$Move_CalfBorn==1),] #keep only cows with confident calving movements
+neonate <- neonate[(neonate$Surveyed=="Yes"),] #only keep surveyed neonates (excludes May survey too)
+neonate$Calf_Present <- as.numeric(neonate$Calf_Present)
+neonate$Calving_Julian <- as.numeric(neonate$Calving_Julian)
+neonate$Calf_Age <- as.numeric(neonate$Calf_Age)
+
+#### LOAD AND PREP DATA - BP ####
+BP_cows <- read.csv("BP_Positions.csv")
+BP_cows <- BP_cows[!(BP_cows$DOP > 10),] #remove inaccurate fixes
+BP_cows <- BP_cows[!(BP_cows$DOP = 0),] #remove bad fixes
+BP_cows$DOP <- NULL #get rid of DOP column
+all(complete.cases(BP_cows)) # check all entries are there
+names(BP_cows)[2] <- "Collar" #rename column
+BP_cows$Date <- as.POSIXct(BP_cows$Date) #create useable date column
+BP_cows$Year <- year(BP_cows$Date) #add in year column
+BP_cows <- BP_cows[!(BP_cows$Longitude>-80),]
+#min(BP_cows$Longitude)
+BP_positions <- BP_cows
+BP_cows<-merge(BP_cows,neonate,by.x=c("Collar","Year"),by.y=c("SN","CalfYear"),all.x=T) #merge positions with neonate details
+BP_cows$WLHID.y<-NULL #remove extra column
+BP_cows<-BP_cows[!(is.na(BP_cows$Number)),] #get rid of N/A data
+BP_cows$Survey_Date <- as.POSIXct(BP_cows$Survey_Date) #create useable survey date
+BP_cows <- BP_cows[!(BP_cows$Date<BP_cows$Calving_Date),] #remove any data before calving date
+BP_cows <- BP_cows[!(BP_cows$Date>BP_cows$Survey_Date),] #remove any data after survey date
+duration<-BP_cows %>% group_by(Number) %>% summarise(n=n(),min=min(Date),max=max(Date)) #min and max date for each cow when subsetted
+BP_cows <- BP_cows[order(BP_cows$Date,BP_cows$Time),] #order data by date and time
+ggplot(BP_cows) +  geom_point(data=BP_cows, aes(x=Longitude, y=Latitude), color=BP_cows$Number) #check that no positions look weird
+
+#### generate kernel densities - BP ####
+BP_positions <-merge(BP_positions,neonate,by.x=c("Collar","Year"),by.y=c("SN","YearHR"),all.x=T)
+BP_positions<-BP_positions[!(is.na(BP_positions$Number)),] #get rid of N/A data
+BP_positions$CaptureDate <- as.POSIXct(BP_positions$CaptureDate) #create useable capture date
+BP_positions<-BP_positions[!(BP_positions$Date<BP_positions$CaptureDate),] #get rid of data before capture
+BP_positions$OffAirDate[is.na(BP_positions$OffAirDate)] <- "2100-01-01" #give arbitrary offair date to alive/still collared cows (so can subset...)
+BP_positions$OffAirDate <- as.POSIXct(BP_positions$OffAirDate) #create useable offair date
+BP_positions<-BP_positions[!(BP_positions$Date>BP_positions$OffAirDate),] #get rid of data before capture
+duration2<-BP_positions %>% group_by(Number) %>% summarise(n=n(),min=min(Date),max=max(Date)) #min and max date for each cow when subsetted
+ggplot(BP_positions) + geom_point(data=BP_positions, aes(x=Longitude, y=Latitude), color=BP_positions$Number) #check that no positions look weird
+
+#generate home ranges
+BP_positions_sp<-SpatialPointsDataFrame(BP_positions[,c(7,6)], BP_positions, proj4string=CRS("+proj=longlat +datum=WGS84"))
+BP_cows_sp <- spTransform(BP_positions_sp, sp::CRS("+proj=utm +zone=10 ellps=WGS84"))
+temp <- as.data.frame(BP_cows_sp)
+temp$jitterx <- jitter(temp$Longitude.1,factor=50)
+temp$jittery <- jitter(temp$Latitude.1,factor=50)
+temp <- SpatialPointsDataFrame(temp[,c(53,54)],temp,proj4string=CRS("+proj=utm +zone=10 ellps=WGS84"))
+plot(temp,col="blue")
+points(BP_cows_sp,col="red")
+kud <- kernelUD(temp[,9],h="LSCV",extent=0.8,grid=310)
+homerange <- getverticeshr(kud,percent=98,unin="m",unout="km2")
+plot(homerange,col=homerange$id)
+points(BP_cows_sp,cex=0.5,col="red")
+rm(BP_positions_sp,BP_positions,temp)
+
+#generate random samples in each polygon
+x <- homerange
+size <- duration$n #add number of actual locations
+x$size <- size #add number of actual locations
+samples <- list() #loop through creating random sample of points
+  for (i in 1:nrow(x)) {
+    psub <- x[i,]
+      ns <- x[i,]$size
+    psamp <- try( sp::spsample(psub, n = ns*20, type = "random", 
+                               iter = 10) )
+    samples[[i]] <- sp::SpatialPointsDataFrame(psamp, 
+      data.frame(id = rep(psub$id,length(psamp))))
+  }
+samples <- do.call("rbind", samples) 
+proj4string(samples) <- proj4string(x)
+plot(x) #check it looks right
+  points(samples, pch=20) 
+samples<-spTransform(samples, sp::CRS("+proj=longlat +datum=WGS84"))
+plot(samples)
+random <- as.data.frame(samples) #create random dataframe
+rm(psamp,psub,samples,x,i,ns,size)
+
+
+#combine datasets
+backup <- BP_cows
+BP_cows <- BP_cows[c(2,3,6,7,9,22,29,49)]
+BP_cows <- BP_cows[order(BP_cows$Number),]
+random$Year <- vlookup(random$id,BP_cows,result_column=1,lookup_column=5)
+random$WLHID.x <- vlookup(random$id,BP_cows,result_column=2,lookup_column=5)
+random$Calving_Date <- vlookup(random$id,BP_cows,result_column=6,lookup_column=5)
+random$Calf_Present <- vlookup(random$id,BP_cows,result_column=7,lookup_column=5)
+random$RSF6week <- vlookup(random$id,BP_cows,result_column=8,lookup_column=5)
+random <- random[c(4,5,3,2,1,6,7,8)]
+colnames(random)[3] <- "Latitude"
+colnames(random)[4] <- "Longitude"
+colnames(random)[5] <- "Number"
+random$used <- 0
+BP_cows$used <- 1
+BP_ua <- rbind(BP_cows,random)
+rm(random,BP_cows)
+rm(BP_cows_sp)
+
+#### Extract BP covariates - NDVI ####
+
+#MODIStsp()
+
+#create spatial points
+BP_ua_sp <- SpatialPointsDataFrame(BP_ua[,c(4,3)], BP_ua, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+#load distance to forest edge when in forest rasters
+NDVI2013 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2013.tif")
+NDVI2014 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2014.tif")
+NDVI2015 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2015.tif")
+#no 2016 :(
+NDVI2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2017.tif")
+NDVI2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2018.tif")
+NDVI2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2019.tif")
+NDVI2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\NDVI\\NDVI_BP\\Calving Avg 113 to 177\\CALF_BP_NDVI_2020.tif")
+#no 2021 :(
+BP_ua_sp <- spTransform(BP_ua_sp,crs(NDVI2018))
+
+#extract NDVI
+BP_ua$NDVI <- if (BP_ua_sp$Year == "2013"){raster::extract(NDVI2013,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2014"){raster::extract(NDVI2014,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2015"){raster::extract(NDVI2015,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2017"){raster::extract(NDVI2017,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2018"){raster::extract(NDVI2018,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2019"){raster::extract(NDVI2019,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2020"){raster::extract(NDVI2020,BP_ua_sp)
+      } else (print("NA"))
+which(is.na(BP_ua$NDVI))
+BP_ua$NDVI[is.na(BP_ua$NDVI)] = mean(BP_ua$NDVI, na.rm=TRUE)
+BP_ua$NDVI <- BP_ua$NDVI*0.0001
+rm(NDVI2013,NDVI2014,NDVI2015,NDVI2017,NDVI2018,NDVI2019,NDVI2020,NDVI2021)
+
+#### Extract BP covariates - land cover ####
+
+#create spatial points
+BP_ua_sp <- SpatialPointsDataFrame(BP_ua[,c(4,3)], BP_ua, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+#load in data
+VRI <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Land Cover\\Landcover_BP50km_20m.tif")
+VRI <- as.factor(VRI)
+BP_ua_sp <- spTransform(BP_ua_sp,crs(VRI))
+BP_buf <- gBuffer(spgeom=BP_ua_sp,byid=TRUE,width=250)
+BP_buf$uniqueid <- row(BP_buf)
+
+VRI <- crop(VRI,extent(BP_buf))
+VRI <- as.factor(VRI)
+VRI.vx <- velox(VRI)
+landcoverVRI_HR <- VRI.vx$extract(sp=BP_buf)
+
+landcover_proportions <- lapply(landcoverVRI_HR, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+landcover <- plyr::ldply(landcover_proportions, rbind)
+landcover[is.na(landcover)]<-0
+
+BP_ua$Coniferous <- landcover$`1`
+BP_ua$Pine <- landcover$`2`
+BP_ua$Nonforest <- landcover$`3`
+BP_ua$Deciduous <- landcover$`4`
+BP_ua$MixedForest <- landcover$`5`
+BP_ua$landcover <- raster::extract(VRI,BP_ua_sp)
+write.csv(BP_ua,'BP_ua_final_6weeks.csv')
+rm(VRI,VRI.vx,landcover,landcover_proportions,landcoverVRI_HR)
+
+
+###### Extract BP covariates - Burn #########
+
+#load burns
+burn2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Burns\\Burns_currenthistorical2021.tif")
+BP_ua_sp <- spTransform(BP_ua_sp,crs(burn2021))
+BP_buf<- spTransform(BP_buf,crs(burn2021))
+burn2021 <- crop(burn2021,extent(BP_buf))
+burn2020 <- burn2021
+rm(burn2021)
+plot(burn2020)
+burn2019 <- burn2020
+burn2018 <- burn2020
+burn2017 <- burn2020
+burn2015 <- burn2020
+burn2014 <- burn2020
+burn2013 <- burn2020
+burn2020[burn2020<1] <-NA #removing years before burn year
+burn2019[burn2019<2] <-NA
+burn2018[burn2018<3] <-NA
+burn2017[burn2017<4] <-NA
+burn2015[burn2015<6] <-NA
+burn2014[burn2014<7] <-NA
+burn2013[burn2013<8] <-NA
+burn2020 <- burn2020-1
+burn2019 <- burn2019-2
+burn2018 <- burn2018-3
+burn2017 <- burn2017-4
+burn2015 <- burn2015-6
+burn2014 <- burn2014-7
+burn2013 <- burn2013-8
+burn2020[burn2020==0]<-0.1
+burn2019[burn2019==0]<-0.1
+burn2018[burn2018==0]<-0.1
+burn2017[burn2017==0]<-0.1
+burn2015[burn2015==0]<-0.1
+burn2014[burn2014==0]<-0.1
+burn2013[burn2013==0]<-0.1
+burn2020[is.na(burn2020[])] <- 0
+burn2019[is.na(burn2019[])] <- 0
+burn2018[is.na(burn2018[])] <- 0
+burn2017[is.na(burn2017[])] <- 0
+burn2015[is.na(burn2015[])] <- 0
+burn2014[is.na(burn2014[])] <- 0
+burn2013[is.na(burn2013[])] <- 0
+plot(burn2013)
+
+#extract data
+burn <- if (BP_ua_sp$Year == "2013"){raster::extract(burn2013,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2014"){raster::extract(burn2014,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2015"){raster::extract(burn2015,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2017"){raster::extract(burn2017,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2018"){raster::extract(burn2018,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2019"){raster::extract(burn2019,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2020"){raster::extract(burn2020,BP_ua_sp)
+      } else (print("NA"))
+BP_ua <- cbind(BP_ua,burn)
+rm(burn2013,burn2014,burn2015,burn2017,burn2018,burn2019,burn2020)
+rm(burn)
+BP_ua$burnage <- BP_ua$burn
+BP_ua$burn <- ifelse(BP_ua$burnage>0,1,0)
+rm(burn2021)
+
+###### Extract BP covariates - Burn prop #########
+
+#load burns
+burn2021 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Burns\\Burns_currenthistorical2021.tif") #don't forget its 2021,not 2020
+BP_ua_sp <- SpatialPointsDataFrame(BP_ua[,c(4,3)], BP_ua, proj4string=CRS("+proj=longlat +datum=WGS84"))
+BP_ua_sp <- spTransform(BP_ua_sp,crs(burn2021))
+BP_buf <- gBuffer(spgeom=BP_ua_sp,byid=TRUE,width=250)
+BP_buf$uniqueid <- row(BP_buf)
+burn2021 <- crop(burn2021,extent(BP_buf))
+burn2020 <- burn2021
+burn2020[burn2020<1] <-NA #removing years before burn year
+burn2020[burn2020>25] <- NA
+burn2020[burn2020<26] <- 1
+burn2020[is.na(burn2020[])] <- 0
+plot(burn2020)
+burn2020<-velox(burn2020)
+burn2020_prop <- burn2020$extract(sp=BP_buf)
+burn2020_prop <- lapply(burn2020_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2020_prop <- plyr::ldply(burn2020_prop, rbind)
+burn2020_prop[is.na(burn2020_prop)]<-0
+burns <- burn2020_prop
+rm(burn2020_prop)
+burns$y2020 <- burns$`1`
+burns$`1` <- NULL
+burns$`0`<-NULL
+rm(burn2020)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+burn2019 <- burn2021
+burn2019[burn2019<2] <-NA
+burn2019[burn2019>26] <- NA
+burn2019[burn2019<27] <- 1
+burn2019[is.na(burn2019[])] <- 0
+burn2019<-velox(burn2019)
+burn2019_prop <- burn2019$extract(sp=BP_buf)
+rm(burn2019)
+burn2019_prop <- lapply(burn2019_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2019_prop <- plyr::ldply(burn2019_prop, rbind)
+burn2019_prop[is.na(burn2019_prop)]<-0
+burns$y2019 <- burn2019_prop$`1`
+rm(burn2019_prop)
+write.csv(BP_ua,'BP_ua_final_6weeks.csv')
+
+burn2018 <- burn2021
+burn2018[burn2018<3] <-NA
+burn2018[burn2018>27] <- NA
+burn2018[burn2018<28] <- 1
+burn2018[is.na(burn2018[])] <- 0
+burn2018<-velox(burn2018)
+burn2018_prop <- burn2018$extract(sp=BP_buf)
+rm(burn2018)
+burn2018_prop <- lapply(burn2018_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2018_prop <- plyr::ldply(burn2018_prop, rbind)
+burn2018_prop[is.na(burn2018_prop)]<-0
+burns$y2018 <- burn2018_prop$`1`
+rm(burn2018_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+write.csv(BP_ua,'BP_ua_final_6weeks.csv')
+
+burn2017 <- burn2021
+burn2017[burn2017<4] <-NA
+burn2017[burn2017>28] <- NA
+burn2017[burn2017<29] <- 1
+burn2017[is.na(burn2017[])] <- 0
+plot(burn2017)
+burn2017<-velox(burn2017)
+burn2017_prop <- burn2017$extract(sp=BP_buf)
+rm(burn2017)
+burn2017_prop <- lapply(burn2017_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2017_prop <- plyr::ldply(burn2017_prop, rbind)
+burn2017_prop[is.na(burn2017_prop)]<-0
+burns$y2017 <- burn2017_prop$`1`
+rm(burn2017_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+burn2015 <- burn2021
+burn2015[burn2015<6] <-NA
+burn2015[burn2015>30] <- NA
+burn2015[burn2015<31] <- 1
+burn2015[is.na(burn2015[])] <- 0
+plot(burn2015)
+burn2015<-velox(burn2015)
+burn2015_prop <- burn2015$extract(sp=BP_buf)
+rm(burn2015)
+burn2015_prop <- lapply(burn2015_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2015_prop <- plyr::ldply(burn2015_prop, rbind)
+burn2015_prop[is.na(burn2015_prop)]<-0
+burns$y2015 <- burn2015_prop$`1`
+rm(burn2015_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+burn2014 <- burn2021
+burn2014[burn2014<7] <-NA
+burn2014[burn2014>31] <- NA
+burn2014[burn2014<32] <- 1
+burn2014[is.na(burn2014[])] <- 0
+plot(burn2014)
+burn2014<-velox(burn2014)
+burn2014_prop <- burn2014$extract(sp=BP_buf)
+rm(burn2014)
+burn2014_prop <- lapply(burn2014_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2014_prop <- plyr::ldply(burn2014_prop, rbind)
+burn2014_prop[is.na(burn2014_prop)]<-0
+burns$y2014 <- burn2014_prop$`1`
+rm(burn2014_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+burn2013 <- burn2021
+burn2013[burn2013<8] <-NA
+burn2013[burn2013>32] <- NA
+burn2013[burn2013<33] <- 1
+burn2013[is.na(burn2013[])] <- 0
+plot(burn2013)
+burn2013<-velox(burn2013)
+burn2013_prop <- burn2013$extract(sp=BP_buf)
+rm(burn2013)
+burn2013_prop <- lapply(burn2013_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+burn2013_prop <- plyr::ldply(burn2013_prop, rbind)
+burn2013_prop[is.na(burn2013_prop)]<-0
+burns$y2013 <- burn2013_prop$`1`
+rm(burn2013_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+rm(burn2021)
+
+BP_ua$burn_prop <- ifelse(BP_ua$Year==2013,burns$y2013,ifelse(
+  BP_ua$Year==2014,burns$y2014,ifelse(
+    BP_ua$Year==2015,burns$y2015,ifelse(
+      BP_ua$Year==2017,burns$y2017,ifelse(
+        BP_ua$Year==2018,burns$y2018,ifelse(
+          BP_ua$Year==2019,burns$y2019,ifelse(
+            BP_ua$Year==2020,burns$y2020,"NA")))))))
+
+write.csv(BP_ua,'BP_ua_final_6weeks.csv')
+rm(burns)
+
+#### Extract BP covariates - road density ####
+
+#load road density data
+roaddens <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Roads\\roaddensBP.tif")
+plot(roaddens)
+points(BP_ua_sp)
+
+#extract roaddens
+BP_ua$roaddens <- raster::extract(roaddens,BP_ua_sp)
+rm(roaddens)
+
+#### Extract BP covariates - road distance ####
+
+#load distance to road data
+roaddist <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Roads\\EucDist_road10m_BP.tif")
+plot(roaddist)
+points(BP_ua_sp)
+
+#extract roaddist
+BP_ua$roaddist <- as.numeric(raster::extract(roaddist,BP_ua_sp))
+rm(roaddist)
+BP_ua$ln_roaddist <- log(BP_ua$roaddist+0.1)
+
+#### Extract BP covariates - cut blocks ####
+
+#load shapefile
+cut2013 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2013")
+cut2013clean <- cut2013[,c(97,103,104)]
+rm(cut2013)
+cut2014 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2014")
+cut2014clean <- cut2014[,c(96,102,103)]
+rm(cut2014)
+cut2015 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2015")
+cut2015clean <- cut2015[,c(96,102,103)]
+rm(cut2015)
+#no 2016 data
+cut2017 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2017")
+cut2017clean <- cut2017[,c(91,97,98)]
+rm(cut2017)
+cut2018 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2018")
+cut2018clean <- cut2018[,(c(95,101,102))]
+rm(cut2018)
+cut2019 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2019")
+cut2019clean <- cut2019[,(c(91,98,100))]
+rm(cut2019)
+cut2020 <- readOGR(dsn="D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS", layer="RESULTS_CLIP_50km_2020")
+cut2020clean <- cut2020[,(c(91,98,99))]
+rm(cut2020)#no 2021 data
+
+head(cut2014@data)
+which(colnames(cut2018@data)=="SizeHa")
+which(colnames(cut2018@data)=="Age")
+which(colnames(cut2018@data)=="AgeClass")#determines which columns to cut
+
+#transform crs
+BP_ua_sp <- spTransform(BP_ua_sp,crs(cut2018clean))
+plot(cut2020clean)
+points(BP_ua_sp)
+
+#extract data based on Year
+overcut <- if (BP_ua_sp$Year == "2013"){over(BP_ua_sp,cut2013clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2014"){over(BP_ua_sp,cut2014clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2015"){over(BP_ua_sp,cut2015clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2017"){over(BP_ua_sp,cut2017clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2018"){over(BP_ua_sp,cut2018clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2020"){over(BP_ua_sp,cut2020clean,fun=NULL)
+} else if (BP_ua_sp$Year == "2019"){over(BP_ua_sp,cut2019clean,fun=NULL)
+      } else (print("NA"))
+colnames(overcut)[1] <- "sizeha"
+colnames(overcut)[2] <- "cutage"
+colnames(overcut)[3] <- "cutageclass"
+
+#combine with the dataset
+BP_ua <- cbind(BP_ua,overcut)
+BP_ua$sizeha[is.na(BP_ua$sizeha)] = 0
+BP_ua$cutage[is.na(BP_ua$cutage)] = 0
+BP_ua$cutageclass <- as.factor(BP_ua$cutageclass)
+BP_ua$cutageclass<- factor(BP_ua$cutageclass, levels = levels(addNA(BP_ua$cutageclass)), labels = c(levels(BP_ua$cutageclass), "UnCut"), exclude = NULL)
+
+#make dummies for cut age classes
+BP_ua<-dummy_cols(BP_ua, select_columns="cutageclass",remove_first_dummy=FALSE,remove_most_frequent_dummy = FALSE)
+names(BP_ua)[names(BP_ua) == 'cutageclass_new'] <- 'newcut'
+names(BP_ua)[names(BP_ua) == 'cutageclass_regen'] <- 'regencut'
+rm(cut2018clean,cut2019clean,cut2019,cut2018,cut2020,cut2020clean,cut2021clean,overcut)
+rm(cut2013clean,cut2014clean,cut2015clean,cut2017clean)
+
+
+######## Extract BP covariates - cuts ####
+
+#import raster
+cut2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2020_BOTH20m.tif")
+BP_buf <- spTransform(BP_buf,crs(cut2020))
+cut2020 <- crop(cut2020,extent(BP_buf))
+cut2020[cut2020>24] <- NA
+cut2020[cut2020==0] <- NA
+cut2020[cut2020<9] <- 1
+cut2020[cut2020>8] <- 2
+cut2020[is.na(cut2020)]<-0
+cut2020<-velox(cut2020)
+cut2020_prop <- cut2020$extract(sp=BP_buf)
+rm(cut2020)
+cut2020_prop <- lapply(cut2020_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2020_prop <- plyr::ldply(cut2020_prop, rbind)
+cut2020_prop[is.na(cut2020_prop)]<-0
+cuts <- cut2020_prop
+cuts$y2020new <- cuts$'1'
+cuts$y2020regen <- cuts$'2'
+cuts$'0'<-NULL
+cuts$`1`<- NULL
+cuts$`2`<-NULL
+rm(cut2020_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2019_BOTH20m.tif")
+cut2019 <- crop(cut2019,extent(BP_buf))
+cut2019[cut2019>24] <- NA
+cut2019[cut2019==0] <- NA
+cut2019[cut2019<9] <- 1
+cut2019[cut2019>8] <- 2
+cut2019[is.na(cut2019)]<-0
+cut2019<-velox(cut2019)
+cut2019_prop <- cut2019$extract(sp=BP_buf)
+rm(cut2019)
+cut2019_prop <- lapply(cut2019_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2019_prop <- plyr::ldply(cut2019_prop, rbind)
+cut2019_prop[is.na(cut2019_prop)]<-0
+cuts$y2019new <- cut2019_prop$`1`
+cuts$y2019regen <- cut2019_prop$`2`
+rm(cut2019_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2018_BOTH20m.tif")
+cut2018 <- crop(cut2018,extent(BP_buf))
+cut2018[cut2018>24] <- NA
+cut2018[cut2018==0] <- NA
+cut2018[cut2018<9] <- 1
+cut2018[cut2018>8] <- 2
+cut2018[is.na(cut2018)]<-0
+cut2018<-velox(cut2018)
+cut2018_prop <- cut2018$extract(sp=BP_buf)
+rm(cut2018)
+cut2018_prop <- lapply(cut2018_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2018_prop <- plyr::ldply(cut2018_prop, rbind)
+cut2018_prop[is.na(cut2018_prop)]<-0
+cuts$y2018new <- cut2018_prop$`1`
+cuts$y2018regen <- cut2018_prop$`2`
+rm(cut2018_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2017_BOTH20m.tif")
+cut2017 <- crop(cut2017,extent(BP_buf))
+cut2017[cut2017>24] <- NA
+cut2017[cut2017==0] <- NA
+cut2017[cut2017<9] <- 1
+cut2017[cut2017>8] <- 2
+cut2017[is.na(cut2017)]<-0
+cut2017<-velox(cut2017)
+cut2017_prop <- cut2017$extract(sp=BP_buf)
+rm(cut2017)
+cut2017_prop <- lapply(cut2017_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2017_prop <- plyr::ldply(cut2017_prop, rbind)
+cut2017_prop[is.na(cut2017_prop)]<-0
+cuts$y2017new <- cut2017_prop$`1`
+cuts$y2017regen <- cut2017_prop$`2`
+rm(cut2017_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2015 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2015_BOTH20m.tif")
+cut2015 <- crop(cut2015,extent(BP_buf))
+cut2015[cut2015>24] <- NA
+cut2015[cut2015==0] <- NA
+cut2015[cut2015<9] <- 1
+cut2015[cut2015>8] <- 2
+cut2015[is.na(cut2015)]<-0
+cut2015<-velox(cut2015)
+cut2015_prop <- cut2015$extract(sp=BP_buf)
+rm(cut2015)
+cut2015_prop <- lapply(cut2015_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2015_prop <- plyr::ldply(cut2015_prop, rbind)
+cut2015_prop[is.na(cut2015_prop)]<-0
+cuts$y2015new <- cut2015_prop$`1`
+cuts$y2015regen <- cut2015_prop$`2`
+rm(cut2015_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2014 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2014_BOTH20m.tif")
+cut2014 <- crop(cut2014,extent(BP_buf))
+cut2014[cut2014>24] <- NA
+cut2014[cut2014==0] <- NA
+cut2014[cut2014<9] <- 1
+cut2014[cut2014>8] <- 2
+cut2014[is.na(cut2014)]<-0
+cut2014<-velox(cut2014)
+cut2014_prop <- cut2014$extract(sp=BP_buf)
+rm(cut2014)
+cut2014_prop <- lapply(cut2014_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2014_prop <- plyr::ldply(cut2014_prop, rbind)
+cut2014_prop[is.na(cut2014_prop)]<-0
+cuts$y2014new <- cut2014_prop$`1`
+cuts$y2014regen <- cut2014_prop$`2`
+rm(cut2014_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+cut2013 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\RESULTS\\RESULTS_RASTERS\\RESULTS_AGE_2013_BOTH20m.tif")
+cut2013 <- crop(cut2013,extent(BP_buf))
+cut2013[cut2013>24] <- NA
+cut2013[cut2013==0] <- NA
+cut2013[cut2013<9] <- 1
+cut2013[cut2013>8] <- 2
+cut2013[is.na(cut2013)]<-0
+cut2013<-velox(cut2013)
+cut2013_prop <- cut2013$extract(sp=BP_buf)
+rm(cut2013)
+cut2013_prop <- lapply(cut2013_prop, function(x) {
+  counts_x <- table(x)
+  proportions_x <- prop.table(counts_x)
+  sort(proportions_x)
+  })
+cut2013_prop <- plyr::ldply(cut2013_prop, rbind)
+cut2013_prop$`0` <- NULL
+cut2013_prop[is.na(cut2013_prop)]<-0
+cuts$y2013new <- cut2013_prop$`1`
+cuts$y2013regen <- cut2013_prop$`2`
+rm(cut2013_prop)
+save.image(file='neonate_success_6weekclipped6.RData')
+
+BP_ua$newcut_prop <- ifelse(BP_ua$Year==2013,cuts$y2013new,ifelse(
+  BP_ua$Year==2014,cuts$y2014new,ifelse(
+    BP_ua$Year==2015,cuts$y2015new,ifelse(
+      BP_ua$Year==2017,cuts$y2017new,ifelse(
+        BP_ua$Year==2018,cuts$y2018new,ifelse(
+          BP_ua$Year==2019,cuts$y2019new,ifelse(
+            BP_ua$Year==2020,cuts$y2020new,NA)))))))
+BP_ua$regencut_prop <- ifelse(BP_ua$Year==2013,cuts$y2013regen,ifelse(
+  BP_ua$Year==2014,cuts$y2014regen,ifelse(
+    BP_ua$Year==2015,cuts$y2015regen,ifelse(
+      BP_ua$Year==2017,cuts$y2017regen,ifelse(
+        BP_ua$Year==2018,cuts$y2018regen,ifelse(
+          BP_ua$Year==2019,cuts$y2019regen,ifelse(
+            BP_ua$Year==2020,cuts$y2020regen,NA)))))))
+
+#### Extract BP covariates - Edge In ####
+
+#load distance to forest edge when in forest rasters
+edgein2013 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2013_BP.tif")
+edgein2014 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2014_BP.tif")
+edgein2015 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2015_BP.tif")
+edgein2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2017_BP.tif")
+edgein2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2018_BP.tif")
+edgein2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2019_BP.tif")
+edgein2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgein2020_BP.tif")
+plot(edgein2018)
+points(BP_ua_sp)
+
+#extract
+BP_ua$edgein <- if (BP_ua_sp$Year == "2013"){raster::extract(edgein2013,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2014"){raster::extract(edgein2014,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2015"){raster::extract(edgein2015,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2017"){raster::extract(edgein2017,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2018"){raster::extract(edgein2018,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2019"){raster::extract(edgein2019,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2020"){eraster::extract(edgein2020,BP_ua_sp)
+      } else (print("NA"))
+rm(edgein2018,edgein2019,edgein2020,edgein2021,edgein2013,edgein2014,edgein2015,edgein2017)
+
+BP_ua$edgein[is.na(BP_ua$edgein)] = mean(BP_ua$edgein, na.rm=TRUE)
+BP_ua$ln_edgein <- log(BP_ua$edgein+0.1)
+
+#### Extract BP covariates - Edge Out ####
+
+#load distance to forest edge when outside forest rasters
+edgeout2013 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2013_BP.tif")
+edgeout2014 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2014_BP.tif")
+edgeout2015 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2015_BP.tif")
+edgeout2017 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2017_BP.tif")
+edgeout2018 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2018_BP.tif")
+edgeout2019 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2019_BP.tif")
+edgeout2020 <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Edge\\BP Edge\\edgeout2020_BP.tif")
+
+#extract
+BP_ua$edgeout <- if (BP_ua_sp$Year == "2013"){raster::extract(edgeout2013,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2014"){raster::extract(edgeout2014,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2015"){raster::extract(edgeout2015,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2017"){raster::extract(edgeout2017,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2018"){raster::extract(edgeout2018,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2019"){raster::extract(edgeout2019,BP_ua_sp)
+} else if (BP_ua_sp$Year == "2020"){raster::extract(edgeout2020,BP_ua_sp)
+      } else (print("NA"))
+BP_ua$edgeout[is.na(BP_ua$edgeout)] = mean(BP_ua$edgeout, na.rm=TRUE)
+rm(edgeout2018,edgeout2019,edgeout2020,edgeout2021,edgeout2013,edgeout2014,edgeout2015,edgeout2017)
+BP_ua$ln_edgeout <- log(BP_ua$edgeout+0.1)
+
+#### Extract BP covariates - Water ####
+
+#import raster
+water <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Waterbodies\\disttowater_BP.tif")
+
+#extract water at start of step
+BP_ua$water <- raster::extract(water,BP_ua_sp)
+rm(water)
+BP_ua$ln_water <- log(BP_ua$water+0.1)
+
+
+#### Extract BP covariates - Topography ####
+
+elevation <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\BP_ELEVATION.tif")
+slope <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\BP_SLOPE.tif")
+aspect <- raster("D:\\OneDrive\\Documents\\Academic\\PhD\\Data\\Spatial\\Topography\\BP_ASPECT.tif")
+BP_ua_sp <- spTransform(BP_ua_sp,crs(elevation))
+
+#extract at end of step
+BP_ua$elevation <- raster::extract(elevation,BP_ua_sp)
+BP_ua$slope <- raster::extract(slope,BP_ua_sp)
+BP_ua$aspect <- raster::extract(aspect,BP_ua_sp)
+rm(slope,aspect,elevation)
+
+
+######## Save BP data ############
+
+rm(duration,duration2,bu,backup)
+write.csv(BP_ua,'BP_ua_final_6weeks.csv')
+
+######## resource selection function #############
+
+options(scipen = 999)
+
+#load file
+PGS <- read.csv("RSF Final\\PGS_ua_final_6weeks.csv",na.strings=c(""," ","NA"))
+PGS$X <- NULL
+BP <- read.csv("RSF Final\\BP_ua_final_6weeks.csv",na.strings=c(""," ","NA"))
+BP$X <- NULL
+PGS$Conifer <- PGS$Coniferous+PGS$Pine
+BP$Conifer <- BP$Coniferous+BP$Pine
+neonate <- read.csv("Neonatesurvival_final.csv",na.strings=c(""," ","NA"))
+BP$fixrate <- vlookup(BP$Number,neonate,result_column = 46, lookup_column = 1)
+BP$fixrate <- as.numeric(BP$fixrate)
+BP <- BP[!c(BP$fixrate>4),]
+hist(BP$fixrate)
+
+PGS$Number<-as.factor(PGS$Number)
+BP$Number <- as.factor(BP$Number)
+PGS$WLHID<-as.factor(PGS$WLHID)
+BP$WLHID <- as.factor(BP$WLHID)
+BP$Year <- as.factor(BP$Year)
+PGS$Year <- as.factor(PGS$Year)
+BP$aspect <- ((pi*BP$aspect)/180)
+BP$eastness <- sin(BP$aspect)
+BP$northness <- cos(BP$aspect)
+
+BP_successful_6week <- BP[BP$Calf_Present==1,]
+BP_unsuccessful_6week <- BP[BP$Calf_Present==0,]
+BP_correlation_successful_6week <- cor(BP_successful_6week[c(9:32)])
+write.csv(BP_correlation_successful_6week,'BP_successful_6week_correlation_calvingtosurvey.csv')
+BP_correlation_unsuccessful_6week <- cor(BP_unsuccessful_6week[c(9:32)])
+write.csv(BP_correlation_unsuccessful_6week,'BP_unsuccessful_6week_correlation_calvingtosurvey.csv')
+rm(BP_correlation_successful_6week,BP_correlation_unsuccessful_6week)
+
+PGS_successful_6week <- PGS[PGS$Calf_Present==1,]
+PGS_unsuccessful_6week <- PGS[PGS$Calf_Present==0,]
+PGS_correlation_successful_6week <- cor(PGS_successful_6week[c(9:34)])
+write.csv(PGS_correlation_successful_6week,'PGS_successful_6week_correlation_calvingtosurvey.csv')
+PGS_correlation_unsuccessful_6week <- cor(PGS_unsuccessful_6week[c(9:34)])
+write.csv(PGS_correlation_unsuccessful_6week,'PGS_unsuccessful_6week_correlation_calvingtosurvey.csv')
+rm(PGS_correlation_successful_6week,PGS_correlation_unsuccessful_6week)
+
+
+#PGS successful_6week
+Mods_PGS_suc <- list()
+#Cover
+Mods_PGS_suc[[1]] <- glmer(used~scale(Conifer)+scale(Deciduous)+scale(MixedForest)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_successful_6week) #cover
+vif(Mods_PGS_suc[[1]])
+summary(Mods_PGS_suc[[1]])
+#Disturbance avoidance
+Mods_PGS_suc[[2]] <- glmer(used~scale(ln_roaddist)+scale(newcut)+scale(regencut)+scale(Pine)+scale(burn_prop)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_successful_6week) #cover
+vif(Mods_PGS_suc[[2]])
+#Topography
+Mods_PGS_suc[[3]] <- glmer(used~scale(elevation)+scale(slope)+scale(eastness)+scale(northness)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_successful_6week) #predation
+vif(Mods_PGS_suc[[3]])
+#Risk avoidant foraging
+Mods_PGS_suc[[4]] <- glmer(used~scale(Conifer)+scale(MixedForest)+scale(Deciduous)+scale(NDVI)+scale(elevation)+scale(slope)+scale(ln_roaddist)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_successful_6week) #roads
+vif(Mods_PGS_suc[[4]])
+#resources
+Mods_PGS_suc[[5]] <- glmer(used~scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(Deciduous)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_successful_6week) #roads
+vif(Mods_PGS_suc[[5]])
+#disturbance resources
+Mods_PGS_suc[[6]] <- glmer(used~scale(burn_prop)+scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_successful_6week) #roads
+vif(Mods_PGS_suc[[6]])
+#human resources
+Mods_PGS_suc[[7]] <- glmer(used~scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_successful_6week) #cuts
+vif(Mods_PGS_suc[[7]])
+#risk-prone foraging
+Mods_PGS_suc[[8]] <- glmer(used~scale(water)+scale(NDVI)+scale(burn_prop)+scale(newcut)+scale(regencut)+scale(ln_roaddist)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_successful_6week) #salvage logging
+vif(Mods_PGS_suc[[8]])
+#global
+Mods_PGS_suc[[9]] <- glmer(used~scale(Coniferous)+scale(Pine)+scale(Deciduous)+scale(MixedForest)+scale(ln_roaddist)+scale(elevation)+scale(slope)+scale(newcut)+scale(regencut)+scale(burn_prop)+scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_successful_6week) #predationsalvage
+vif(Mods_PGS_suc[[9]])
+plot_model(Mods_PGS_suc[[9]],type="re")
+modelnames <- c("Cover","Disturbance avoidance","Topography","Risk avoidant foraging","Resources","Disturbance resources","Human resources",
+                "risk-prone foraging","global")
+PGS_suc_aic <- aictab(cand.set = Mods_PGS_suc, modnames = modelnames, sort = TRUE,second.ord=FALSE)
+PGS_suc_aic
+
+summary(Mods_PGS_suc[[9]])
+p1<-plot_model(Mods_PGS_suc[[9]],transform=NULL)
+p1
+
+#PGS unsuccessful_6week
+Mods_PGS_unsuc <- list()
+#Cover
+Mods_PGS_unsuc[[1]] <- glmer(used~scale(Conifer)+scale(Deciduous)+scale(MixedForest)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_unsuccessful_6week) #cover
+vif(Mods_PGS_unsuc[[1]])
+summary(Mods_PGS_unsuc[[1]])
+#Disturbance avoidance
+Mods_PGS_unsuc[[2]] <- glmer(used~scale(ln_roaddist)+scale(newcut)+scale(regencut)+scale(Pine)+scale(burn_prop)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_unsuccessful_6week) #cover
+vif(Mods_PGS_unsuc[[2]])
+#Topography
+Mods_PGS_unsuc[[3]] <- glmer(used~scale(elevation)+scale(slope)+scale(eastness)+scale(northness)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_unsuccessful_6week) #predation
+vif(Mods_PGS_unsuc[[3]])
+#Risk avoidant foraging
+Mods_PGS_unsuc[[4]] <- glmer(used~scale(Conifer)+scale(MixedForest)+scale(Deciduous)+scale(NDVI)+scale(elevation)+scale(slope)+scale(ln_roaddist)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_unsuccessful_6week) #roads
+vif(Mods_PGS_unsuc[[4]])
+#resources
+Mods_PGS_unsuc[[5]] <- glmer(used~scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(Deciduous)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_unsuccessful_6week) #roads
+vif(Mods_PGS_unsuc[[5]])
+#disturbance resources
+Mods_PGS_unsuc[[6]] <- glmer(used~scale(burn_prop)+scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_unsuccessful_6week) #roads
+vif(Mods_PGS_unsuc[[6]])
+#human resources
+Mods_PGS_unsuc[[7]] <- glmer(used~scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_unsuccessful_6week) #cuts
+vif(Mods_PGS_unsuc[[7]])
+#risk-prone foraging
+Mods_PGS_unsuc[[8]] <- glmer(used~scale(water)+scale(NDVI)+scale(burn_prop)+scale(newcut)+scale(regencut)+scale(ln_roaddist)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=PGS_unsuccessful_6week) #salvage logging
+vif(Mods_PGS_unsuc[[8]])
+#global
+Mods_PGS_unsuc[[9]] <- glmer(used~scale(Coniferous)+scale(Pine)+scale(Deciduous)+scale(MixedForest)+scale(ln_roaddist)+scale(elevation)+scale(slope)+scale(newcut)+scale(regencut)+scale(burn_prop)+scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=PGS_unsuccessful_6week) #predationsalvage
+vif(Mods_PGS_unsuc[[9]])
+modelnames <- c("Cover","Disturbance avoidance","Topography","Risk avoidant foraging","Resources","Disturbance resources","Human resources",
+                "risk-prone foraging","global")
+PGS_unsuc_aic <- aictab(cand.set = Mods_PGS_unsuc, modnames = modelnames, sort = TRUE,second.ord=FALSE)
+PGS_unsuc_aic
+
+summary(Mods_PGS_unsuc[[9]])
+p2<-plot_model(Mods_PGS_unsuc[[9]],transform=NULL)
+p2
+
+
+#BP successful_6week
+Mods_BP_suc <- list()
+#Cover
+Mods_BP_suc[[1]] <- glmer(used~scale(Conifer)+scale(Deciduous)+scale(MixedForest)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_successful_6week) #cover
+vif(Mods_BP_suc[[1]])
+summary(Mods_BP_suc[[1]])
+#Disturbance avoidance
+Mods_BP_suc[[2]] <- glmer(used~scale(ln_roaddist)+scale(newcut)+scale(regencut)+scale(Pine)+scale(burn_prop)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_successful_6week) #cover
+vif(Mods_BP_suc[[2]])
+#Topography
+Mods_BP_suc[[3]] <- glmer(used~scale(elevation)+scale(slope)+scale(eastness)+scale(northness)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_successful_6week) #predation
+vif(Mods_BP_suc[[3]])
+#Risk avoidant foraging
+Mods_BP_suc[[4]] <- glmer(used~scale(Conifer)+scale(MixedForest)+scale(Deciduous)+scale(NDVI)+scale(elevation)+scale(slope)+scale(ln_roaddist)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_successful_6week) #roads
+vif(Mods_BP_suc[[4]])
+#resources
+Mods_BP_suc[[5]] <- glmer(used~scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(Deciduous)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_successful_6week) #roads
+vif(Mods_BP_suc[[5]])
+#disturbance resources
+Mods_BP_suc[[6]] <- glmer(used~scale(burn_prop)+scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_successful_6week) #roads
+vif(Mods_BP_suc[[6]])
+#human resources
+Mods_BP_suc[[7]] <- glmer(used~scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_successful_6week) #cuts
+vif(Mods_BP_suc[[7]])
+#risk-prone foraging
+Mods_BP_suc[[8]] <- glmer(used~scale(water)+scale(NDVI)+scale(burn_prop)+scale(newcut)+scale(regencut)+scale(ln_roaddist)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_successful_6week) #salvage logging
+vif(Mods_BP_suc[[8]])
+#global
+Mods_BP_suc[[9]] <- glmer(used~scale(Coniferous)+scale(Pine)+scale(Deciduous)+scale(MixedForest)+scale(ln_roaddist)+scale(elevation)+scale(slope)+scale(newcut)+scale(regencut)+scale(burn_prop)+scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_successful_6week) #predationsalvage
+vif(Mods_BP_suc[[9]])
+modelnames <- c("Cover","Disturbance avoidance","Topography","Risk avoidant foraging","Resources","Disturbance resources","Human resources",
+                "risk-prone foraging","global")
+BP_suc_aic <- aictab(cand.set = Mods_BP_suc, modnames = modelnames, sort = TRUE,second.ord=FALSE)
+BP_suc_aic
+
+summary(Mods_BP_suc[[9]])
+p3<-plot_model(Mods_BP_suc[[9]],transform=NULL)
+p3
+
+#BP unsuccessful_6week
+Mods_BP_unsuc <- list()
+#Cover
+Mods_BP_unsuc[[1]] <- glmer(used~scale(Conifer)+scale(Deciduous)+scale(MixedForest)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_unsuccessful_6week) #cover
+vif(Mods_BP_unsuc[[1]])
+summary(Mods_BP_unsuc[[1]])
+#Disturbance avoidance
+Mods_BP_unsuc[[2]] <- glmer(used~scale(ln_roaddist)+scale(newcut)+scale(regencut)+scale(Pine)+scale(burn_prop)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_unsuccessful_6week) #cover
+vif(Mods_BP_unsuc[[2]])
+#Topography
+Mods_BP_unsuc[[3]] <- glmer(used~scale(elevation)+scale(slope)+scale(eastness)+scale(northness)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_unsuccessful_6week) #predation
+vif(Mods_BP_unsuc[[3]])
+#Risk avoidant foraging
+Mods_BP_unsuc[[4]] <- glmer(used~scale(Conifer)+scale(MixedForest)+scale(Deciduous)+scale(NDVI)+scale(elevation)+scale(slope)+scale(ln_roaddist)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_unsuccessful_6week) #roads
+vif(Mods_BP_unsuc[[4]])
+#resources
+Mods_BP_unsuc[[5]] <- glmer(used~scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(Deciduous)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_unsuccessful_6week) #roads
+vif(Mods_BP_unsuc[[5]])
+#disturbance resources
+Mods_BP_unsuc[[6]] <- glmer(used~scale(burn_prop)+scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_unsuccessful_6week) #roads
+vif(Mods_BP_unsuc[[6]])
+#human resources
+Mods_BP_unsuc[[7]] <- glmer(used~scale(newcut)+scale(regencut)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_unsuccessful_6week) #cuts
+vif(Mods_BP_unsuc[[7]])
+#risk-prone foraging
+Mods_BP_unsuc[[8]] <- glmer(used~scale(water)+scale(NDVI)+scale(burn_prop)+scale(newcut)+scale(regencut)+scale(ln_roaddist)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number), family=binomial,nAGQ=0, data=BP_unsuccessful_6week) #salvage logging
+vif(Mods_BP_unsuc[[8]])
+#global
+Mods_BP_unsuc[[9]] <- glmer(used~scale(Coniferous)+scale(Pine)+scale(Deciduous)+scale(MixedForest)+scale(ln_roaddist)+scale(elevation)+scale(slope)+scale(newcut)+scale(regencut)+scale(burn_prop)+scale(water)+scale(NDVI)+scale(eastness)+scale(northness)+scale(roaddens)+(1|Year)+(1|Number),nAGQ=0, family=binomial, data=BP_unsuccessful_6week) #predationsalvage
+vif(Mods_BP_unsuc[[9]])
+plot_model(Mods_BP_unsuc[[9]],type="re")
+modelnames <- c("Cover","Disturbance avoidance","Topography","Risk avoidant foraging","Resources","Disturbance resources","Human resources",
+                "risk-prone foraging","global")
+BP_unsuc_aic <- aictab(cand.set = Mods_BP_unsuc, modnames = modelnames, sort = TRUE,second.ord=FALSE)
+BP_unsuc_aic
+
+summary(Mods_BP_unsuc[[9]])
+p4<-plot_model(Mods_BP_unsuc[[9]],transform=NULL)
+
+p1
+p2
+p3
+p4
+######
+
+plot_grid(BP_suc_plot,BP_unsuc_plot, labels = NULL,nrow=1)
+
+plot_grid(p1,p2)
+plot_grid(p3,p4)
+
+plot_model(Mods_PGS_suc[[9]],type="pred",terms="ln_edgeout [exp]")
+plot_model(Mods_PGS_suc[[9]],type="pred",terms="ln_edgein")+xlim(0,500)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########### Create rasters to feed into raster stack
+
+###VRI
+coniferous <- (VRI$Landcover==1)
+deciduous <-  (VRI$Landcover==2)
+mixedforest <-  (VRI$Landcover==3)
+pine <-  (VRI$Landcover==5)
+
+#roads
+lnroaddist <- log(roaddist+0.01)
+
+#cutblocks c("1"="regen", "2"="new","3"="old")
+newcut2017 <- (cutage2017$CUTAGE_2017 ==2)
+newcut2018 <- (cutage2018$CUTAGE_2018 ==2)
+newcut2019 <- (cutage2019$CUTAGE_2019 ==2)
+newcut2020 <- (cutage2020$CUTAGE_2020 ==2)
+regencut2017 <- (cutage2017$CUTAGE_2017 ==1)
+regencut2018 <- (cutage2018$CUTAGE_2018 ==1)
+regencut2019 <- (cutage2019$CUTAGE_2019 ==1)
+regencut2020 <- (cutage2020$CUTAGE_2020 ==1)
+
+#water
+lnwater <- log(water+0.01)
+
+#ndvi
+ndvi2017 <- projectRaster(NDVI2017, crs="+init=epsg:3005")
+ndvi2018 <- projectRaster(NDVI2018, crs="+init=epsg:3005")
+ndvi2019 <- projectRaster(NDVI2019, crs="+init=epsg:3005")
+ndvi2020 <- projectRaster(NDVI2020, crs="+init=epsg:3005")
+
+#edge
+edge2017 <- edgein2017+edgeout2017
+edge2018 <- edgein2018+edgeout2018
+edge2019 <- edgein2019+edgeout2019
+edge2020 <- edgein2020+edgeout2020
+
+#crop everything to PGS
+NDVI2017 <- crop(ndvi2017,roaddens,snap='near')
+NDVI2018 <- crop(ndvi2018,roaddens,snap='near')
+NDVI2019 <- crop(ndvi2019,roaddens,snap='near')
+NDVI2020 <- crop(ndvi2020,roaddens,snap='near')
+coniferous <- crop(coniferous,roaddens,snap='near')
+deciduous <- crop(deciduous,roaddens,snap='near')
+mixedforest <- crop(mixedforest,roaddens,snap='near')
+pine <- crop(pine,roaddens,snap='near')
+newcut2017 <- crop(newcut2017,roaddens,snap='near')
+newcut2018 <- crop(newcut2018,roaddens,snap='near')
+newcut2019 <- crop(newcut2019,roaddens,snap='near')
+newcut2020 <- crop(newcut2020,roaddens,snap='near')
+regencut2017 <- crop(regencut2017,roaddens,snap='near')
+regencut2018 <- crop(regencut2018,roaddens,snap='near')
+regencut2019 <- crop(regencut2019,roaddens,snap='near')
+regencut2020 <- crop(regencut2020,roaddens,snap='near')
+cutsize2018 <- crop(cutsize2018,roaddens,snap='near')
+cutsize2019 <- crop(cutsize2019,roaddens,snap='near')
+cutsize2020 <- crop(cutsize2020,roaddens,snap='near')
+lnroaddist <- crop(lnroaddist,roaddens,snap='near')
+edge2017 <- crop(edge2017,roaddens,snap='near')
+edge2018 <- crop(edge2018,roaddens,snap='near')
+edge2019 <- crop(edge2019,roaddens,snap='near')
+edge2020 <- crop(edge2020,roaddens,snap='near')
+lnwater <- crop(lnwater,roaddens,snap='near')
+
+#make zeros from NA
+newcut2017[is.na(newcut2017[])] <- 0
+newcut2018[is.na(newcut2018[])] <- 0
+newcut2019[is.na(newcut2019[])] <- 0
+newcut2020[is.na(newcut2020[])] <- 0
+regencut2017[is.na(regencut2017[])] <- 0
+regencut2018[is.na(regencut2018[])] <- 0
+regencut2019[is.na(regencut2019[])] <- 0
+regencut2020[is.na(regencut2020[])] <- 0
+cutsize2017[is.na(cutsize2017[])] <- 0
+cutsize2018[is.na(cutsize2018[])] <- 0
+cutsize2019[is.na(cutsize2019[])] <- 0
+cutsize2020[is.na(cutsize2020[])] <- 0
+
+
+#fix extent...
+NDVI2017<- resample(NDVI2017,roaddens)
+NDVI2018<- resample(NDVI2018,roaddens)
+NDVI2019<-resample(NDVI2019,roaddens)
+NDVI2020<-resample(NDVI2020,roaddens)
+coniferous<-resample(coniferous,roaddens)
+deciduous<-resample(deciduous,roaddens)
+mixedforest<-resample(mixedforest,roaddens)
+pine<-resample(pine,roaddens)
+newcut2017<-resample(newcut2017,roaddens)
+newcut2018<-resample(newcut2018,roaddens)
+newcut2019<-resample(newcut2019,roaddens)
+newcut2020<-resample(newcut2020,roaddens)
+regencut2017<-resample(regencut2017,roaddens)
+regencut2018<-resample(regencut2018,roaddens)
+regencut2019<-resample(regencut2019,roaddens)
+regencut2020<-resample(regencut2020,roaddens)
+cutsize2017<-resample(cutsize2017,roaddens)
+cutsize2018<-resample(cutsize2018,roaddens)
+cutsize2019<-resample(cutsize2019,roaddens)
+cutsize2020<-resample(cutsize2020,roaddens)
+roaddens<-resample(roaddens,roaddens)
+lnroaddist<-resample(lnroaddist,roaddens)
+edge2017<-resample(edge2017,roaddens)
+edge2018<-resample(edge2018,roaddens)
+edge2019<-resample(edge2019,roaddens)
+edge2020<-resample(edge2020,roaddens)
+lnwater<-resample(lnwater,roaddens)
+
+#edge
+edge2017 <- scale(edge2017,scale=TRUE)
+edge2018 <- scale(edge2018,scale=TRUE)
+edge2019 <- scale(edge2019,scale=TRUE)
+edge2020 <- scale(edge2020,scale=TRUE)
+lnwater <- scale(lnwater,scale=TRUE)
+lnroaddist <- scale(lnroaddist,scale=TRUE)
+roaddens <- scale(roaddens,scale=TRUE)
+cutsize2017 <- scale(cutsize2017,scale=TRUE)
+cutsize2018 <- scale(cutsize2018,scale=TRUE)
+cutsize2019 <- scale(cutsize2019,scale=TRUE)
+cutsize2020 <- scale(cutsize2020,scale=TRUE)
+NDVI2017 <- scale(NDVI2017,scale=TRUE)
+NDVI2018 <- scale(NDVI2018,scale=TRUE)
+NDVI2019 <- scale(NDVI2019,scale=TRUE)
+NDVI2020 <- scale(NDVI2020,scale=TRUE)
+
+#2017
+bricksummer2017 <- raster::brick(NDVI2017,coniferous,mixedforest,deciduous,pine,newcut2017, regencut2017,cutsize2017,roaddens,lnroaddist,edge2017,lnwater)
+names(bricksummer2017) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valuessummer2017 <- values(bricksummer2017)
+brick.valuessummer2017 <- brick.valuessummer2017 %>% data.frame
+str(brick.valuessummer2017)
+predsummer2017 <- predict(summer, newdata = brick.valuessummer2017, allow.new.levels=TRUE)
+logRSFsummer2017 <- bricksummer2017[[1]] %>% setValues(predsummer2017)
+RSFsummer2017 <- exp(logRSFsummer2017)/(1+exp(logRSFsummer2017))
+writeRaster(RSFsummer2017,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFsummer2017.tif',overwrite=TRUE)
+
+#2018
+bricksummer2018 <- raster::brick(NDVI2018,coniferous,mixedforest,deciduous,pine,newcut2018, regencut2018,cutsize2018,roaddens,lnroaddist,edge2018,lnwater)
+names(bricksummer2018) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valuessummer2018 <- values(bricksummer2018)
+brick.valuessummer2018 <- brick.valuessummer2018 %>% data.frame
+str(brick.valuessummer2018)
+predsummer2018 <- predict(summer, newdata = brick.valuessummer2018, allow.new.levels=TRUE)
+logRSFsummer2018 <- bricksummer2018[[1]] %>% setValues(predsummer2018)
+RSFsummer2018 <- exp(logRSFsummer2018)/(1+exp(logRSFsummer2018))
+plot(RSFsummer2018)
+writeRaster(RSFsummer2018,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFsummer2018.tif',overwrite=TRUE)
+
+#2019
+bricksummer2019 <- raster::brick(NDVI2019,coniferous,mixedforest,deciduous,pine,newcut2019, regencut2019,cutsize2019,roaddens,lnroaddist,edge2019,lnwater)
+names(bricksummer2019) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valuessummer2019 <- values(bricksummer2019)
+brick.valuessummer2019 <- brick.valuessummer2019 %>% data.frame
+str(brick.valuessummer2019)
+predsummer2019 <- predict(summer, newdata = brick.valuessummer2019, allow.new.levels=TRUE)
+logRSFsummer2019 <- bricksummer2019[[1]] %>% setValues(predsummer2019)
+RSFsummer2019 <- exp(logRSFsummer2019)/(1+exp(logRSFsummer2019))
+plot(RSFsummer2019)
+writeRaster(RSFsummer2019,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFsummer2019.tif',overwrite=TRUE)
+
+#2020
+bricksummer2020 <- raster::brick(NDVI2020,coniferous,mixedforest,deciduous,pine,newcut2020, regencut2020,cutsize2020,roaddens,lnroaddist,edge2020,lnwater)
+names(bricksummer2020) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valuessummer2020 <- values(bricksummer2020)
+brick.valuessummer2020 <- brick.valuessummer2020 %>% data.frame
+str(brick.valuessummer2020)
+predsummer2020 <- predict(summer, newdata = brick.valuessummer2020, allow.new.levels=TRUE)
+logRSFsummer2020 <- bricksummer2020[[1]] %>% setValues(predsummer2020)
+RSFsummer2020 <- exp(logRSFsummer2020)/(1+exp(logRSFsummer2020))
+plot(RSFsummer2020)
+writeRaster(RSFsummer2020,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFsummer2020.tif',overwrite=TRUE)
+
+
+#2017
+brickwinter2017 <- raster::brick(NDVI2017,coniferous,mixedforest,deciduous,pine,newcut2017, regencut2017,cutsize2017,roaddens,lnroaddist,edge2017,lnwater)
+names(brickwinter2017) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valueswinter2017 <- values(brickwinter2017)
+brick.valueswinter2017 <- brick.valueswinter2017 %>% data.frame
+str(brick.valueswinter2017)
+predwinter2017 <- predict(winter, newdata = brick.valueswinter2017, allow.new.levels=TRUE)
+logRSFwinter2017 <- brickwinter2017[[1]] %>% setValues(predwinter2017)
+RSFwinter2017 <- exp(logRSFwinter2017)/(1+exp(logRSFwinter2017))
+writeRaster(RSFwinter2017,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFwinter2017.tif',overwrite=TRUE)
+
+#2018
+brickwinter2018 <- raster::brick(NDVI2018,coniferous,mixedforest,deciduous,pine,newcut2018, regencut2018,cutsize2018,roaddens,lnroaddist,edge2018,lnwater)
+names(brickwinter2018) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valueswinter2018 <- values(brickwinter2018)
+brick.valueswinter2018 <- brick.valueswinter2018 %>% data.frame
+str(brick.valueswinter2018)
+predwinter2018 <- predict(winter, newdata = brick.valueswinter2018, allow.new.levels=TRUE)
+logRSFwinter2018 <- brickwinter2018[[1]] %>% setValues(predwinter2018)
+RSFwinter2018 <- exp(logRSFwinter2018)/(1+exp(logRSFwinter2018))
+plot(RSFwinter2018)
+writeRaster(RSFwinter2018,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFwinter2018.tif',overwrite=TRUE)
+
+#2019
+brickwinter2019 <- raster::brick(NDVI2019,coniferous,mixedforest,deciduous,pine,newcut2019, regencut2019,cutsize2019,roaddens,lnroaddist,edge2019,lnwater)
+names(brickwinter2019) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valueswinter2019 <- values(brickwinter2019)
+brick.valueswinter2019 <- brick.valueswinter2019 %>% data.frame
+str(brick.valueswinter2019)
+predwinter2019 <- predict(winter, newdata = brick.valueswinter2019, allow.new.levels=TRUE)
+logRSFwinter2019 <- brickwinter2019[[1]] %>% setValues(predwinter2019)
+RSFwinter2019 <- exp(logRSFwinter2019)/(1+exp(logRSFwinter2019))
+plot(RSFwinter2019)
+writeRaster(RSFwinter2019,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFwinter2019.tif',overwrite=TRUE)
+
+#2020
+brickwinter2020 <- raster::brick(NDVI2020,coniferous,mixedforest,deciduous,pine,newcut2020, regencut2020,cutsize2020,roaddens,lnroaddist,edge2020,lnwater)
+names(brickwinter2020) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.valueswinter2020 <- values(brickwinter2020)
+brick.valueswinter2020 <- brick.valueswinter2020 %>% data.frame
+str(brick.valueswinter2020)
+predwinter2020 <- predict(winter, newdata = brick.valueswinter2020, allow.new.levels=TRUE)
+logRSFwinter2020 <- brickwinter2020[[1]] %>% setValues(predwinter2020)
+RSFwinter2020 <- exp(logRSFwinter2020)/(1+exp(logRSFwinter2020))
+plot(RSFwinter2020)
+writeRaster(RSFwinter2020,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSFwinter2020.tif',overwrite=TRUE)
+
+
+
+#2017
+brick2017 <- raster::brick(NDVI2017,coniferous,mixedforest,deciduous,pine,newcut2017, regencut2017,cutsize2017,roaddens,lnroaddist,edge2017,lnwater)
+names(brick2017) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.values2017 <- values(brick2017)
+brick.values2017 <- brick.values2017 %>% data.frame
+str(brick.values2017)
+pred2017 <- predict(annual, newdata = brick.values2017, allow.new.levels=TRUE)
+logRSF2017 <- brick2017[[1]] %>% setValues(pred2017)
+RSF2017 <- exp(logRSF2017)/(1+exp(logRSF2017))
+plot(RSF2017)
+writeRaster(RSF2017,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2017.tif',overwrite=TRUE)
+
+#2018
+brick2018 <- raster::brick(NDVI2018,coniferous,mixedforest,deciduous,pine,newcut2018, regencut2018,cutsize2018,roaddens,lnroaddist,edge2018,lnwater)
+names(brick2018) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.values2018 <- values(brick2018)
+brick.values2018 <- brick.values2018 %>% data.frame
+str(brick.values2018)
+pred2018 <- predict(annual, newdata = brick.values2018, allow.new.levels=TRUE)
+logRSF2018 <- brick2018[[1]] %>% setValues(pred2018)
+RSF2018 <- exp(logRSF2018)/(1+exp(logRSF2018))
+plot(RSF2018)
+writeRaster(RSF2018,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2018.tif',overwrite=TRUE)
+
+#2019
+brick2019 <- raster::brick(NDVI2019,coniferous,mixedforest,deciduous,pine,newcut2019, regencut2019,cutsize2019,roaddens,lnroaddist,edge2019,lnwater)
+names(brick2019) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.values2019 <- values(brick2019)
+brick.values2019 <- brick.values2019 %>% data.frame
+str(brick.values2019)
+pred2019 <- predict(annual, newdata = brick.values2019, allow.new.levels=TRUE)
+logRSF2019 <- brick2019[[1]] %>% setValues(pred2019)
+RSF2019 <- exp(logRSF2019)/(1+exp(logRSF2019))
+plot(RSF2019)
+writeRaster(RSF2019,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2019.tif',overwrite=TRUE)
+
+#2020
+brick2020 <- raster::brick(NDVI2020,coniferous,mixedforest,deciduous,pine,newcut2020, regencut2020,cutsize2020,roaddens,lnroaddist,edge2020,lnwater)
+names(brick2020) <- c("NDVI","landcover_Coniferous","landcover_MixedForest","landcover_Deciduous","landcover_Pine","cutageclass_new","cutageclass_regen","sizeha","roaddens","ln_roaddist","edge","ln_water")
+brick.values2020 <- values(brick2020)
+brick.values2020 <- brick.values2020 %>% data.frame
+str(brick.values2020)
+pred2020 <- predict(annual, newdata = brick.values2020, allow.new.levels=TRUE)
+logRSF2020 <- brick2020[[1]] %>% setValues(pred2020)
+RSF2020 <- exp(logRSF2020)/(1+exp(logRSF2020))
+plot(RSF2020)
+writeRaster(RSF2020,'D:\\OneDrive\\Documents\\Academic\\PhD\\Publications\\iSSA\\Data\\Spatial\\WolfRSF\\RSF2020.tif',overwrite=TRUE)
